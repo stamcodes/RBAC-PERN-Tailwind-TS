@@ -4,14 +4,14 @@ import swaggerJsdoc from "swagger-jsdoc";
 import authRoutes from "./routes/authRoutes";
 import userRoutes from "./routes/userRoutes";
 import roleRoutes from "./routes/roleRoutes";
-
+import branchRoutes from "./routes/branchRoutes";
 import permissionRoutes from "./routes/permissionRoutes";
+import productRoutes from "./routes/productRoutes";
 const app = express();
 
 // Required middleware to parse incoming JSON request bodies
 app.use(express.json());
 
-// ==========================================
 // SWAGGER CONFIGURATION SETUP
 // ==========================================
 const swaggerOptions = {
@@ -38,7 +38,7 @@ const swaggerOptions = {
       },
     },
   },
-  apis: ["./routes/*.ts"], // Only scan route files, not middleware
+  apis: ["./routes/*.ts", "./docs/*.ts"],
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
@@ -46,14 +46,13 @@ const swaggerDocs = swaggerJsdoc(swaggerOptions);
 // Serve the graphical UI interface page
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// Mount your authentication router routes
+//All mounts for the routes.
 app.use("/api/auth", authRoutes);
-
-// Mount your new User Administration management routes
 app.use("/api/users", userRoutes);
-
 app.use("/api/permissions", permissionRoutes);
 app.use("/api/roles", roleRoutes);
+app.use("/api/branches", branchRoutes);
+app.use("/api/products", productRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

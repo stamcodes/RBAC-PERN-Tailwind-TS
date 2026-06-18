@@ -8,23 +8,7 @@ const router = express.Router();
 router.use(authenticateToken);
 router.use(requireAdmin);
 
-/**
- * @openapi
- * /api/permissions:
- *   get:
- *     summary: Retrieve all available system permissions
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Permissions catalog retrieved successfully.
- *       401:
- *         description: Unauthorized.
- *       403:
- *         description: Forbidden.
- *       500:
- *         description: Server error.
- */
+// 11. GET /api/permissions
 router.get("/", async (req: Request, res: Response) => {
   try {
     const permissions = await db("permissions")
