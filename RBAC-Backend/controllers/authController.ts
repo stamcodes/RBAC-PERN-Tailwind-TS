@@ -6,6 +6,7 @@ import { AuthenticatedRequest } from "../middleware/authMiddleware";
 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_fallback_key";
 
+// 1. POST /api/auth/register
 export const register = async (req: Request, res: Response) => {
   try {
     const { name, email, password } = req.body;
@@ -48,6 +49,7 @@ export const register = async (req: Request, res: Response) => {
   }
 };
 
+// 2. POST /api/auth/login
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -94,6 +96,7 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
+// 3. GET /api/auth/me
 export const getMe = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
@@ -114,6 +117,7 @@ export const getMe = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
+// 4. POST /api/auth/reset-password
 export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { email, currentPassword, newPassword } = req.body;
@@ -125,12 +129,10 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     const user = await db("users").where({ email }).first();
     if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
-      return res
-        .status(401)
-        .json({
-          success: false,
-          message: "Invalid authorization verification details.",
-        });
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authorization verification details.",
+      });
     }
 
     const newHashedPassword = await bcrypt.hash(newPassword, 10);
@@ -147,6 +149,7 @@ export const resetPassword = async (req: Request, res: Response) => {
   }
 };
 
+// 5. PATCH /api/auth/deactivate
 export const deactivate = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
