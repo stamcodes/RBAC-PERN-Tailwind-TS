@@ -2,7 +2,9 @@ import express from "express";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 import authRoutes from "./routes/authRoutes";
-import userRoutes from "./routes/userRoutes"; // Add this line near your authRoutes import
+import userRoutes from "./routes/userRoutes";
+
+import permissionRoutes from "./routes/permissionRoutes";
 const app = express();
 
 // Required middleware to parse incoming JSON request bodies
@@ -48,6 +50,8 @@ app.use("/api/auth", authRoutes);
 
 // Mount your new User Administration management routes
 app.use("/api/users", userRoutes);
+
+app.use("/api/permissions", permissionRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

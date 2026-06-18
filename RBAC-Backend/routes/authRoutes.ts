@@ -3,49 +3,13 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import db from "../config/db";
 
+import {
+  authenticateToken,
+  AuthenticatedRequest,
+} from "../middleware/authMiddleware";
+
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_fallback_key";
-
-// TypeScript interface for injecting authenticated user session state
-interface AuthenticatedRequest extends Request {
-  user?: {
-    userId: number;
-    email: string;
-    roleId: number;
-  };
-}
-
-// ==========================================
-// AUTHENTICATION INTERCEPTOR MIDDLEWARE
-// ==========================================
-const authenticateToken = (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // Format: "Bearer <token>"
-
-  if (!token) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Access denied. Token missing." });
-  }
-
-  try {
-    const verified = jwt.verify(token, JWT_SECRET) as {
-      userId: number;
-      email: string;
-      roleId: number;
-    };
-    req.user = verified;
-    next();
-  } catch (error) {
-    return res
-      .status(403)
-      .json({ success: false, message: "Invalid or expired token." });
-  }
-};
 
 // ==========================================
 // 1. POST /api/auth/register
@@ -307,12 +271,10 @@ router.post("/reset-password", async (req: Request, res: Response) => {
 
     const user = await db("users").where({ email }).first();
     if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
-      return res
-        .status(401)
-        .json({
-          success: false,
-          message: "Invalid authorization verification details.",
-        });
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authorization verification details.",
+      });
     }
 
     const newHashedPassword = await bcrypt.hash(newPassword, 10);
