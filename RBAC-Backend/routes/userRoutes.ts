@@ -1,6 +1,8 @@
 import express, { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import db from "../config/db";
+import { authenticateToken } from "../middleware/authMiddleware";
+import { requireAdmin } from "../middleware/rbacMiddleware";
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_fallback_key";
@@ -12,64 +14,6 @@ interface AuthenticatedRequest extends Request {
     roleId: number;
   };
 }
-
-// ==========================================
-// AUTHENTICATION & RBAC MIDDLEWARE
-// ==========================================
-
-const authenticateToken = (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
-
-  if (!token) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Access denied. Token missing." });
-  }
-
-  try {
-    const verified = jwt.verify(token, JWT_SECRET) as {
-      userId: number;
-      email: string;
-      roleId: number;
-    };
-    req.user = verified;
-    next();
-  } catch (error) {
-    return res
-      .status(403)
-      .json({ success: false, message: "Invalid or expired token." });
-  }
-};
-
-const requireAdmin = async (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const roleId = req.user?.roleId;
-    const role = await db("roles").where({ id: roleId }).first();
-
-    if (!role || role.name !== "Admin") {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied. Administrator privileges required.",
-      });
-    }
-
-    next();
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Internal role verification error." });
-  }
-};
 
 router.use(authenticateToken);
 router.use(requireAdmin);

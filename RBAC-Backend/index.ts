@@ -3,6 +3,7 @@ import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 import authRoutes from "./routes/authRoutes";
 import userRoutes from "./routes/userRoutes";
+import roleRoutes from "./routes/roleRoutes";
 
 import permissionRoutes from "./routes/permissionRoutes";
 const app = express();
@@ -37,7 +38,7 @@ const swaggerOptions = {
       },
     },
   },
-  apis: ["**/*.ts"],
+  apis: ["./routes/*.ts"], // Only scan route files, not middleware
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
@@ -52,6 +53,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 
 app.use("/api/permissions", permissionRoutes);
+app.use("/api/roles", roleRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
