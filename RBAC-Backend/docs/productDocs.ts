@@ -185,7 +185,12 @@
  *                 type: array
  *                 items:
  *                   type: integer
- *                 example: [2, 3]
+ *                 example: [1, 2, 3]
+ *           examples:
+ *             default:
+ *               summary: Update variant colors only
+ *               value:
+ *                 variantValueIds: [1, 2, 3]
  *     responses:
  *       200:
  *         description: Variant updated successfully.

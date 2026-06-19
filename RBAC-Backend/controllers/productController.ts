@@ -177,7 +177,6 @@ export const createProductVariant = async (req: Request, res: Response) => {
         variantValueIds.length > 0
       ) {
         const optionRecords = variantValueIds.map((valueId: number) => ({
-          product_id: productId,
           product_variant_id: newVariant.id,
           variant_value_id: valueId,
         }));
