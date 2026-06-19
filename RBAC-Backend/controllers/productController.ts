@@ -9,6 +9,8 @@ export const getAllProducts = async (req: Request, res: Response) => {
         "products.id",
         "products.name",
         "products.description",
+        "products.price",
+        "products.is_active",
         db.raw(
           "COALESCE(json_agg(DISTINCT categories.name) FILTER (WHERE categories.id IS NOT NULL), '[]') as categories",
         ),
@@ -34,12 +36,12 @@ export const getAllProducts = async (req: Request, res: Response) => {
 // 17. POST /api/products
 export const createProduct = async (req: Request, res: Response) => {
   try {
-    const { name, description, categoryIds } = req.body;
+    const { name, description, price, is_active, categoryIds } = req.body;
 
-    if (!name) {
+    if (!name || price === undefined) {
       return res.status(400).json({
         success: false,
-        message: "'name' is required.",
+        message: "'name' and 'price' are required.",
       });
     }
 
@@ -53,8 +55,13 @@ export const createProduct = async (req: Request, res: Response) => {
 
     await db.transaction(async (trx) => {
       const [newProduct] = await trx("products")
-        .insert({ name, description: description || null })
-        .returning(["id", "name", "description"]);
+        .insert({
+          name,
+          description: description || null,
+          price,
+          is_active: is_active !== undefined ? is_active : true,
+        })
+        .returning(["id", "name", "description", "price", "is_active"]);
 
       if (categoryIds && Array.isArray(categoryIds) && categoryIds.length > 0) {
         const categoryRecords = categoryIds.map((catId: number) => ({
@@ -190,7 +197,6 @@ export const createProductVariant = async (req: Request, res: Response) => {
 // 20. PUT /api/products/variants/:variantId
 export const updateProductVariant = async (req: Request, res: Response) => {
   try {
-    // Note: Use params.variantId as defined in the route
     const variantId: number = parseInt(req.params.variantId as string, 10);
     const { sku, price, stock_quantity, variantValueIds } = req.body;
 

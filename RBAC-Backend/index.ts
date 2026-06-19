@@ -13,7 +13,6 @@ const app = express();
 app.use(express.json());
 
 // SWAGGER CONFIGURATION SETUP
-// ==========================================
 const swaggerOptions = {
   definition: {
     openapi: "3.0.0",

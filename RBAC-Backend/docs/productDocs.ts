@@ -37,6 +37,7 @@
  *             type: object
  *             required:
  *               - name
+ *               - price
  *             properties:
  *               name:
  *                 type: string
@@ -44,6 +45,12 @@
  *               description:
  *                 type: string
  *                 example: High performance running shoes
+ *               price:
+ *                 type: number
+ *                 example: 59.99
+ *               is_active:
+ *                 type: boolean
+ *                 example: true
  *               categoryIds:
  *                 type: array
  *                 items:
