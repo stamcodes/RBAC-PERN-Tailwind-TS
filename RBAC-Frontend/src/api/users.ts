@@ -19,6 +19,21 @@ export const getUserById = async (token: string, id: number) => {
   return response.data;
 };
 
+export const createUser = async (
+  token: string,
+  name: string,
+  email: string,
+  password: string,
+  role_id: number,
+) => {
+  const response = await axios.post(
+    `${BASE_URL}/api/users`,
+    { name, email, password, role_id },
+    authHeader(token),
+  );
+  return response.data;
+};
+
 export const updateUserRole = async (
   token: string,
   id: number,

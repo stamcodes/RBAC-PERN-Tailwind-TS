@@ -9,6 +9,7 @@ router.use(authenticateToken);
 router.use(requireAdmin);
 
 router.get("/", userController.getAllUsers);
+router.post("/", userController.createUser); // ← ADD THIS
 router.get("/:id", userController.getUserById);
 router.patch("/:id/role", userController.updateUserRole);
 router.delete("/:id", userController.deactivateUser);

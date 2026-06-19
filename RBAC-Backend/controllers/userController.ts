@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import bcrypt from "bcrypt";
 import db from "../config/db";
 
 // 6. GET /api/users
@@ -104,10 +105,12 @@ export const updateUserRole = async (req: Request, res: Response) => {
         });
     }
 
-    return res.status(200).json({
-      success: true,
-      message: `User role changed successfully to '${targetRole.name}'.`,
-    });
+    return res
+      .status(200)
+      .json({
+        success: true,
+        message: `User role changed successfully to '${targetRole.name}'.`,
+      });
   } catch (error) {
     console.error(error);
     return res
@@ -131,14 +134,71 @@ export const deactivateUser = async (req: Request, res: Response) => {
         .json({ success: false, message: "Target user account not found." });
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "User account deactivated successfully.",
-    });
+    return res
+      .status(200)
+      .json({
+        success: true,
+        message: "User account deactivated successfully.",
+      });
   } catch (error) {
     console.error(error);
     return res
       .status(500)
       .json({ success: false, message: "Failed to deactivate user account." });
+  }
+};
+
+// 10. POST /api/users
+export const createUser = async (req: Request, res: Response) => {
+  try {
+    const { name, email, password, role_id } = req.body as {
+      name: string;
+      email: string;
+      password: string;
+      role_id: number;
+    };
+
+    if (!name || !email || !password || !role_id) {
+      return res.status(400).json({
+        success: false,
+        message: "'name', 'email', 'password', and 'role_id' are required.",
+      });
+    }
+
+    const existing = await db("users").where({ email }).first();
+    if (existing) {
+      return res
+        .status(409)
+        .json({
+          success: false,
+          message: "A user with that email already exists.",
+        });
+    }
+
+    const roleExists = await db("roles").where({ id: role_id }).first();
+    if (!roleExists) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Specified role does not exist." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const [newUser] = await db("users")
+      .insert({
+        name,
+        email,
+        password: hashedPassword,
+        role_id,
+        is_active: true,
+      })
+      .returning(["id", "name", "email", "role_id", "is_active"]);
+
+    return res.status(201).json({ success: true, data: newUser });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to create user." });
   }
 };

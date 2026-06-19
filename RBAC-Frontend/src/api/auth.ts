@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_URL;
+// Fallback to local port 5000 if the VITE_API_URL environment variable is missing
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export const loginUser = async (email: string, password: string) => {
   const response = await axios.post(`${BASE_URL}/api/auth/login`, {

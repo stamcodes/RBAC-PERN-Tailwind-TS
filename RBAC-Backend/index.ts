@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors"; // 1. Import CORS package
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 import authRoutes from "./routes/authRoutes";
@@ -7,7 +8,16 @@ import roleRoutes from "./routes/roleRoutes";
 import branchRoutes from "./routes/branchRoutes";
 import permissionRoutes from "./routes/permissionRoutes";
 import productRoutes from "./routes/productRoutes";
+
 const app = express();
+
+// 2. Configure CORS to accept requests from your Frontend Vite port
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  }),
+);
 
 // Required middleware to parse incoming JSON request bodies
 app.use(express.json());
@@ -45,7 +55,7 @@ const swaggerDocs = swaggerJsdoc(swaggerOptions);
 // Serve the graphical UI interface page
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-//All mounts for the routes.
+// All mounts for the routes.
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/permissions", permissionRoutes);
