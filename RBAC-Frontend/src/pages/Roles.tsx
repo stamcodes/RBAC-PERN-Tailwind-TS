@@ -58,7 +58,7 @@ const Roles = () => {
     try {
       setAssigning(true);
       await assignPermissionsToRole(token!, selectedRole.id, selectedPermIds);
-      alert(`Permissions assigned to ${selectedRole.role_name} successfully.`);
+      alert(`Permissions assigned to ${selectedRole.name} successfully.`);
       setSelectedRole(null);
       setSelectedPermIds([]);
     } catch (err) {
@@ -70,7 +70,7 @@ const Roles = () => {
 
   const columns = [
     { header: "ID", accessor: "id" as keyof Role },
-    { header: "Role Name", accessor: "role_name" as keyof Role },
+    { header: "Role Name", accessor: "name" as keyof Role },
     {
       header: "Actions",
       accessor: (row: Role) => (
@@ -117,7 +117,7 @@ const Roles = () => {
                 <p className="text-sm text-gray-500 mb-6">
                   Role:{" "}
                   <span className="font-medium text-gray-700">
-                    {selectedRole.role_name}
+                    {selectedRole.name}
                   </span>
                 </p>
 
@@ -133,7 +133,7 @@ const Roles = () => {
                         onChange={() => handleTogglePerm(perm.id)}
                         className="accent-blue-600"
                       />
-                      {perm.permission_name}
+                      {perm.name}
                     </label>
                   ))}
                 </div>

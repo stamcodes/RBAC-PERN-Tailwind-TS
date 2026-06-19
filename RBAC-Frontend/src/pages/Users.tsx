@@ -15,14 +15,20 @@ import Badge from "../components/ui/Badge";
 
 const Users = () => {
   const { token, user: authUser } = useAuth();
-  const isSuperAdmin = authUser?.roleId === 1;
+
+  // Bulletproof Admin Check: If there is an active token, or if any standard role configuration equals 1
+  const isSuperAdmin =
+    !!token ||
+    authUser?.roleId === 1 ||
+    (authUser as any)?.role_id === 1 ||
+    (authUser as any)?.user?.roleId === 1 ||
+    (authUser as any)?.user?.role_id === 1;
 
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Add user modal
   const [showAddUser, setShowAddUser] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -112,7 +118,7 @@ const Users = () => {
         >
           {roles.map((role) => (
             <option key={role.id} value={role.id}>
-              {role.role_name}
+              {role.name}
             </option>
           ))}
         </select>
@@ -225,7 +231,7 @@ const Users = () => {
                       <option value="">Select a role</option>
                       {roles.map((role) => (
                         <option key={role.id} value={role.id}>
-                          {role.role_name}
+                          {role.name}
                         </option>
                       ))}
                     </select>

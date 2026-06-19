@@ -7,12 +7,12 @@ export interface User {
 
 export interface Role {
   id: number;
-  role_name: string;
+  name: string; // Matches backend database column
 }
 
 export interface Permission {
   id: number;
-  permission_name: string;
+  name: string; // Matches backend database column
 }
 
 export interface Branch {
