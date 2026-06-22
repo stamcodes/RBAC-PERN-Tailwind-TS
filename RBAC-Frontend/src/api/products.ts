@@ -45,10 +45,12 @@ export const createProductVariant = async (
   price: number,
   stock_quantity: number,
   variantValueIds?: number[],
+  color?: string,
+  weight?: string,
 ) => {
   const response = await axios.post(
     `${BASE_URL}/api/products/${productId}/variants`,
-    { sku, price, stock_quantity, variantValueIds },
+    { sku, price, stock_quantity, variantValueIds, color, weight },
     authHeader(token),
   );
   return response.data;
@@ -62,6 +64,8 @@ export const updateProductVariant = async (
     price?: number;
     stock_quantity?: number;
     variantValueIds?: number[];
+    color?: string;
+    weight?: string;
   },
 ) => {
   const response = await axios.put(

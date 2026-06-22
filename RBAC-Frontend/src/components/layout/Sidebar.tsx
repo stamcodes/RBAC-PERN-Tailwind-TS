@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 const links = [
   { label: "Dashboard", path: "/dashboard" },
@@ -10,7 +10,7 @@ const links = [
 
 const Sidebar = () => {
   const location = useLocation();
-  const navigate = useNavigate();
+
   const [isProductsOpen, setIsProductsOpen] = useState(
     location.pathname.startsWith("/products"),
   );
