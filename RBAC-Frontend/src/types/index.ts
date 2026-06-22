@@ -26,7 +26,7 @@ export interface Product {
   description: string;
   price: string;
   is_active: boolean;
-  categories: string[];
+  categories: { id: number; name: string }[];
 }
 
 export interface ProductVariant {

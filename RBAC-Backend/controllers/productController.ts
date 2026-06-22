@@ -12,7 +12,7 @@ export const getAllProducts = async (req: Request, res: Response) => {
         "products.price",
         "products.is_active",
         db.raw(
-          "COALESCE(json_agg(DISTINCT categories.name) FILTER (WHERE categories.id IS NOT NULL), '[]') as categories",
+          "COALESCE(json_agg(DISTINCT jsonb_build_object('id', categories.id, 'name', categories.name)) FILTER (WHERE categories.id IS NOT NULL), '[]'::json) as categories",
         ),
       )
       .leftJoin(

@@ -12,13 +12,37 @@ import Sidebar from "../components/layout/Sidebar";
 import Table from "../components/ui/Table";
 import Badge from "../components/ui/Badge";
 
+interface ToastState {
+  show: boolean;
+  message: string;
+  type: "success" | "error";
+}
+
 const Products = () => {
   const { token } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Create product form
+  const [allCategories, setAllCategories] = useState<
+    { id: number; name: string }[]
+  >([]);
+
+  // Category Search input states tracking per row ID
+  const [searchInputs, setSearchInputs] = useState<Record<number, string>>({});
+
+  // Local changes tracking map to display the "UPDATE" button per row if category changed
+  const [pendingUpdates, setPendingUpdates] = useState<Record<number, boolean>>(
+    {},
+  );
+
+  // Toast status reporting state
+  const [toast, setToast] = useState<ToastState>({
+    show: false,
+    message: "",
+    type: "success",
+  });
+
   const [showCreateProduct, setShowCreateProduct] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -26,21 +50,36 @@ const Products = () => {
   const [newIsActive, setNewIsActive] = useState(true);
   const [creating, setCreating] = useState(false);
 
-  // Variants panel
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [variantsLoading, setVariantsLoading] = useState(false);
 
-  // Create variant form
   const [showCreateVariant, setShowCreateVariant] = useState(false);
   const [newSku, setNewSku] = useState("");
   const [newVariantPrice, setNewVariantPrice] = useState("");
   const [newStockQuantity, setNewStockQuantity] = useState("");
   const [creatingVariant, setCreatingVariant] = useState(false);
 
+  const [openCategoryDropdown, setOpenCategoryDropdown] = useState<
+    number | null
+  >(null);
+
   useEffect(() => {
-    fetchProducts();
+    if (token) {
+      fetchProducts();
+      fetchAllCategories();
+    }
   }, [token]);
+
+  const showToastNotification = (
+    message: string,
+    type: "success" | "error" = "success",
+  ) => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast((prev) => ({ ...prev, show: false }));
+    }, 4000);
+  };
 
   const fetchProducts = async () => {
     try {
@@ -49,7 +88,100 @@ const Products = () => {
     } catch (err) {
       setError("Failed to load products.");
     } finally {
-      loading && setLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const fetchAllCategories = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/categories", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setAllCategories(data.data ?? data ?? []);
+    } catch (err) {
+      console.error("Failed to fetch categories", err);
+    }
+  };
+
+  const handleAddCategory = async (productId: number, categoryId: number) => {
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/products/${productId}/categories`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ categoryId: Number(categoryId) }),
+        },
+      );
+      const data = await res.json();
+      if (res.status === 200 || res.status === 201 || data.success) {
+        setPendingUpdates((prev) => ({ ...prev, [productId]: true }));
+        // Instantly refresh local component list representation
+        await fetchProducts();
+      } else {
+        alert(data.message || "Failed to add category.");
+      }
+    } catch (err) {
+      alert("Failed to add category.");
+    } finally {
+      setOpenCategoryDropdown(null);
+    }
+  };
+
+  const handleRemoveCategory = async (
+    productId: number,
+    categoryId: number,
+  ) => {
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/products/${productId}/categories/${categoryId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      const data = await res.json();
+      if (res.status === 200 || data.success) {
+        setPendingUpdates((prev) => ({ ...prev, [productId]: true }));
+        await fetchProducts();
+      } else {
+        alert(data.message || "Failed to remove category.");
+      }
+    } catch (err) {
+      alert("Failed to remove category.");
+    }
+  };
+
+  const handleSaveUpdate = async (productId: number) => {
+    try {
+      // Re-fetch to verify actual operational database data state persistence
+      const res = await fetch(`http://localhost:5000/api/products`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      const verifiedDataList: Product[] = data.data ?? [];
+      const isStillInDb = verifiedDataList.some(
+        (p) => Number(p.id) === Number(productId),
+      );
+
+      if (isStillInDb) {
+        showToastNotification(
+          "Product categories successfully updated in database!",
+          "success",
+        );
+        setPendingUpdates((prev) => ({ ...prev, [productId]: false }));
+      } else {
+        showToastNotification(
+          "Error: Product changes could not be targeted in DB.",
+          "error",
+        );
+      }
+    } catch (e) {
+      showToastNotification("Failed to finalize update check.", "error");
     }
   };
 
@@ -67,18 +199,15 @@ const Products = () => {
         parseFloat(newPrice),
         newIsActive,
       );
-
-      // Ensure we extract data properly regardless of whether it's wrapped in a .data attribute block
       const addedProduct = res?.data ?? res;
       setProducts((prev) => [...prev, addedProduct]);
-
       setNewName("");
       setNewDescription("");
       setNewPrice("");
       setNewIsActive(true);
       setShowCreateProduct(false);
+      showToastNotification("Product created successfully.");
     } catch (err: any) {
-      // Pull actual backend validation messages if fields are rejected
       const message = err.response?.data?.message || err.message;
       alert(`Failed to create product: ${message}`);
     } finally {
@@ -118,6 +247,7 @@ const Products = () => {
       setNewVariantPrice("");
       setNewStockQuantity("");
       setShowCreateVariant(false);
+      showToastNotification("Product variant saved successfully!");
     } catch (err: any) {
       const message = err.response?.data?.message || err.message;
       alert(`Failed to create variant: ${message}`);
@@ -145,8 +275,119 @@ const Products = () => {
     },
     {
       header: "Categories",
-      accessor: (row: Product) =>
-        row.categories?.length > 0 ? row.categories.join(", ") : "—",
+      accessor: (row: Product) => {
+        const assigned: any[] = row.categories ?? [];
+        const currentSearchTerm = searchInputs[row.id] ?? "";
+
+        const availableToAdd = allCategories.filter((c) => {
+          const isNotAssigned = !assigned.some((a) => {
+            const assignedId = a?.id ?? a?.category_id;
+            return Number(assignedId) === Number(c.id);
+          });
+          const matchesSearch = c.name
+            .toLowerCase()
+            .includes(currentSearchTerm.toLowerCase());
+          return isNotAssigned && matchesSearch;
+        });
+
+        return (
+          <div className="flex flex-wrap items-center gap-2 relative">
+            {assigned.length === 0 && (
+              <span className="text-gray-400 text-xs">No categories</span>
+            )}
+            {assigned.map((cat) => {
+              const catId = cat?.id ?? cat?.category_id;
+              const catName =
+                cat?.name ||
+                allCategories.find((c) => Number(c.id) === Number(catId))
+                  ?.name ||
+                `Cat #${catId}`;
+
+              if (!catId) return null;
+
+              return (
+                <span
+                  key={catId}
+                  className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full"
+                >
+                  {catName}
+                  <button
+                    onClick={() => handleRemoveCategory(row.id, catId)}
+                    className="text-blue-400 hover:text-red-500 transition ml-0.5 leading-none font-bold"
+                    title="Remove category"
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+
+            <div className="relative flex items-center gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSearchInputs((prev) => ({ ...prev, [row.id]: "" }));
+                  setOpenCategoryDropdown(
+                    openCategoryDropdown === row.id ? null : row.id,
+                  );
+                }}
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 hover:bg-blue-600 hover:text-white text-gray-600 text-xs font-bold transition"
+                title="Add category"
+              >
+                +
+              </button>
+
+              {/* Dynamic Action Update Button */}
+              {pendingUpdates[row.id] && (
+                <button
+                  onClick={() => handleSaveUpdate(row.id)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow transition animate-pulse"
+                >
+                  Update
+                </button>
+              )}
+
+              {openCategoryDropdown === row.id && (
+                <div
+                  className="absolute z-50 top-6 left-0 bg-white border border-gray-200 rounded shadow-xl min-w-[200px] p-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="text"
+                    value={currentSearchTerm}
+                    autoFocus
+                    placeholder="Type category name..."
+                    onChange={(e) =>
+                      setSearchInputs((prev) => ({
+                        ...prev,
+                        [row.id]: e.target.value,
+                      }))
+                    }
+                    className="w-full text-xs px-2 py-1.5 border border-gray-300 rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="max-h-[160px] overflow-y-auto flex flex-col gap-0.5">
+                    {availableToAdd.length === 0 ? (
+                      <div className="px-2 py-1.5 text-xs text-gray-400 text-center italic">
+                        No matches found
+                      </div>
+                    ) : (
+                      availableToAdd.map((cat) => (
+                        <button
+                          key={cat.id}
+                          onClick={() => handleAddCategory(row.id, cat.id)}
+                          className="w-full text-left px-2 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded transition"
+                        >
+                          {cat.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      },
     },
     {
       header: "Variants",
@@ -179,15 +420,33 @@ const Products = () => {
   ];
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div
+      className="flex flex-col min-h-screen relative"
+      onClick={() => setOpenCategoryDropdown(null)}
+    >
       <Navbar />
+
+      {/* Toast Alert Portal Interface Layout UI */}
+      {toast.show && (
+        <div className="fixed bottom-5 right-5 z-[999] flex items-center gap-3 bg-gray-900 text-white text-sm px-5 py-3 rounded-lg shadow-2xl border-l-4 border-emerald-500 transition-all duration-300 transform translate-y-0 animate-bounce">
+          <span className="flex h-2 w-2 relative">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <p className="font-medium">{toast.message}</p>
+        </div>
+      )}
+
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 p-8 bg-gray-50">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-2xl font-bold text-gray-800">Products</h2>
             <button
-              onClick={() => setShowCreateProduct(true)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowCreateProduct(true);
+              }}
               className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded transition"
             >
               + New Product
@@ -206,7 +465,9 @@ const Products = () => {
           {loading ? (
             <p className="text-sm text-gray-400">Loading products...</p>
           ) : (
-            <Table columns={productColumns} data={products} />
+            <div onClick={(e) => e.stopPropagation()}>
+              <Table columns={productColumns} data={products} />
+            </div>
           )}
 
           {/* Create Product Modal */}
@@ -216,7 +477,6 @@ const Products = () => {
                 <h3 className="text-lg font-bold text-gray-800 mb-6">
                   Create New Product
                 </h3>
-
                 <div className="flex flex-col gap-4 mb-6">
                   <div className="flex flex-col gap-1">
                     <label className="text-sm font-medium text-gray-700">
@@ -270,7 +530,6 @@ const Products = () => {
                     </label>
                   </div>
                 </div>
-
                 <div className="flex gap-3 justify-end">
                   <button
                     onClick={() => setShowCreateProduct(false)}
@@ -281,9 +540,7 @@ const Products = () => {
                   <button
                     onClick={handleCreateProduct}
                     disabled={creating}
-                    className={`px-4 py-2 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition ${
-                      creating ? "opacity-50 cursor-not-allowed" : ""
-                    }`}
+                    className={`px-4 py-2 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition ${creating ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     {creating ? "Creating..." : "Create Product"}
                   </button>
@@ -292,7 +549,7 @@ const Products = () => {
             </div>
           )}
 
-          {/* Variants Panel Modal */}
+          {/* Variants Overlay View */}
           {selectedProduct && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-3xl">
@@ -310,13 +567,11 @@ const Products = () => {
                 <p className="text-sm text-gray-500 mb-6">
                   Product ID: {selectedProduct.id}
                 </p>
-
                 {variantsLoading ? (
                   <p className="text-sm text-gray-400">Loading variants...</p>
                 ) : (
                   <Table columns={variantColumns} data={variants} />
                 )}
-
                 <div className="flex justify-end mt-6">
                   <button
                     onClick={() => {
@@ -330,14 +585,12 @@ const Products = () => {
                   </button>
                 </div>
 
-                {/* Create Variant Form — inline inside variants panel */}
                 {showCreateVariant && (
                   <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-60">
                     <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
                       <h3 className="text-lg font-bold text-gray-800 mb-6">
                         Add Variant to {selectedProduct.name}
                       </h3>
-
                       <div className="flex flex-col gap-4 mb-6">
                         <div className="flex flex-col gap-1">
                           <label className="text-sm font-medium text-gray-700">
@@ -378,7 +631,6 @@ const Products = () => {
                           />
                         </div>
                       </div>
-
                       <div className="flex gap-3 justify-end">
                         <button
                           onClick={() => setShowCreateVariant(false)}
@@ -389,11 +641,7 @@ const Products = () => {
                         <button
                           onClick={handleCreateVariant}
                           disabled={creatingVariant}
-                          className={`px-4 py-2 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition ${
-                            creatingVariant
-                              ? "opacity-50 cursor-not-allowed"
-                              : ""
-                          }`}
+                          className={`px-4 py-2 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition ${creatingVariant ? "opacity-50 cursor-not-allowed" : ""}`}
                         >
                           {creatingVariant ? "Adding..." : "Add Variant"}
                         </button>
