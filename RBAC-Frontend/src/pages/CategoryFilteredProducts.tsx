@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/authContext";
 import {
   getAllProducts,
-  createProduct,
   getProductVariants,
   createProductVariant,
 } from "../api/products";
@@ -10,7 +9,6 @@ import type { Product, ProductVariant } from "../types";
 import Navbar from "../components/layout/Navbar";
 import Sidebar from "../components/layout/Sidebar";
 import Table from "../components/ui/Table";
-import Toggle from "../components/ui/Toggle";
 
 interface ToastState {
   show: boolean;
@@ -18,56 +16,42 @@ interface ToastState {
   type: "success" | "error";
 }
 
-const Products = () => {
+const CategoryFilteredProducts = () => {
   const { token } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
   const [allCategories, setAllCategories] = useState<
     { id: number; name: string }[]
   >([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("ALL");
+  const [loading, setLoading] = useState(true);
 
-  // Category Search input states tracking per row ID
+  // Row and category mapping action states
   const [searchInputs, setSearchInputs] = useState<Record<number, string>>({});
-
-  // Local changes tracking map to display the "UPDATE" button per row if category changed
   const [pendingUpdates, setPendingUpdates] = useState<Record<number, boolean>>(
     {},
   );
-
-  // Toast status reporting state
+  const [openCategoryDropdown, setOpenCategoryDropdown] = useState<
+    number | null
+  >(null);
   const [toast, setToast] = useState<ToastState>({
     show: false,
     message: "",
     type: "success",
   });
 
-  const [showCreateProduct, setShowCreateProduct] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-  const [newPrice, setNewPrice] = useState("");
-  const [newIsActive, setNewIsActive] = useState(true);
-  const [creating, setCreating] = useState(false);
-
+  // Complete Variants Module States (Copied from Products page)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [variantsLoading, setVariantsLoading] = useState(false);
-
   const [showCreateVariant, setShowCreateVariant] = useState(false);
   const [newSku, setNewSku] = useState("");
   const [newVariantPrice, setNewVariantPrice] = useState("");
   const [newStockQuantity, setNewStockQuantity] = useState("");
   const [creatingVariant, setCreatingVariant] = useState(false);
 
-  const [openCategoryDropdown, setOpenCategoryDropdown] = useState<
-    number | null
-  >(null);
-
   useEffect(() => {
     if (token) {
-      fetchProducts();
-      fetchAllCategories();
+      loadInitialData();
     }
   }, [token]);
 
@@ -81,59 +65,23 @@ const Products = () => {
     }, 4000);
   };
 
-  const fetchProducts = async () => {
+  const loadInitialData = async () => {
     try {
-      const res = await getAllProducts(token!);
-      setProducts(res.data ?? []);
-    } catch (err) {
-      setError("Failed to load products.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      setLoading(true);
+      const prodRes = await getAllProducts(token!);
+      setProducts(prodRes.data ?? prodRes ?? []);
 
-  const fetchAllCategories = async () => {
-    try {
-      const res = await fetch("http://localhost:5000/api/categories", {
+      const catRes = await fetch("http://localhost:5000/api/categories", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
-      setAllCategories(data.data ?? data ?? []);
+
+      if (!catRes.ok) throw new Error();
+      const catData = await catRes.json();
+      setAllCategories(catData.data ?? catData ?? []);
     } catch (err) {
-      console.error("Failed to fetch categories", err);
-    }
-  };
-
-  // Live Inline Activation/Deactivation State Change Database Handler
-  const handleToggleProductActive = async (
-    productId: number,
-    currentStatus: boolean,
-  ) => {
-    try {
-      await fetch(`http://localhost:5000/api/products`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: productId, is_active: !currentStatus }),
-      });
-
-      // Update local state map immediately to prevent interface lag
-      setProducts((prevProducts) =>
-        prevProducts.map((p) =>
-          p.id === productId ? { ...p, is_active: !currentStatus } : p,
-        ),
-      );
-
-      showToastNotification(
-        `Product successfully ${!currentStatus ? "activated" : "deactivated"}!`,
-      );
-    } catch (err) {
-      showToastNotification(
-        "Failed to save state change to database.",
-        "error",
-      );
+      showToastNotification("Failed to fetch page data elements.", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -151,14 +99,18 @@ const Products = () => {
         },
       );
       const data = await res.json();
-      if (res.status === 200 || res.status === 201 || data.success) {
+      if (res.ok || data.success) {
         setPendingUpdates((prev) => ({ ...prev, [productId]: true }));
-        await fetchProducts();
+        const prodRes = await getAllProducts(token!);
+        setProducts(prodRes.data ?? prodRes ?? []);
       } else {
-        alert(data.message || "Failed to add category.");
+        showToastNotification(
+          data.message || "Failed to add category.",
+          "error",
+        );
       }
     } catch (err) {
-      alert("Failed to add category.");
+      showToastNotification("Network failure.", "error");
     } finally {
       setOpenCategoryDropdown(null);
     }
@@ -177,14 +129,18 @@ const Products = () => {
         },
       );
       const data = await res.json();
-      if (res.status === 200 || data.success) {
+      if (res.ok || data.success) {
         setPendingUpdates((prev) => ({ ...prev, [productId]: true }));
-        await fetchProducts();
+        const prodRes = await getAllProducts(token!);
+        setProducts(prodRes.data ?? prodRes ?? []);
       } else {
-        alert(data.message || "Failed to remove category.");
+        showToastNotification(
+          data.message || "Failed to remove category.",
+          "error",
+        );
       }
     } catch (err) {
-      alert("Failed to remove category.");
+      showToastNotification("Network failure.", "error");
     }
   };
 
@@ -194,58 +150,23 @@ const Products = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      const verifiedDataList: Product[] = data.data ?? [];
+      const verifiedDataList: Product[] = data.data ?? data ?? [];
       const isStillInDb = verifiedDataList.some(
         (p) => Number(p.id) === Number(productId),
       );
 
       if (isStillInDb) {
-        showToastNotification(
-          "Product categories successfully updated in database!",
-          "success",
-        );
+        showToastNotification("Database successfully updated!", "success");
         setPendingUpdates((prev) => ({ ...prev, [productId]: false }));
       } else {
-        showToastNotification(
-          "Error: Product changes could not be targeted in DB.",
-          "error",
-        );
+        showToastNotification("Error changing product categories.", "error");
       }
     } catch (e) {
       showToastNotification("Failed to finalize update check.", "error");
     }
   };
 
-  const handleCreateProduct = async () => {
-    if (!newName || !newPrice) {
-      alert("Name and price are required.");
-      return;
-    }
-    try {
-      setCreating(true);
-      const res = await createProduct(
-        token!,
-        newName,
-        newDescription,
-        parseFloat(newPrice),
-        newIsActive,
-      );
-      const addedProduct = res?.data ?? res;
-      setProducts((prev) => [...prev, addedProduct]);
-      setNewName("");
-      setNewDescription("");
-      setNewPrice("");
-      setNewIsActive(true);
-      setShowCreateProduct(false);
-      showToastNotification("Product created successfully.");
-    } catch (err: any) {
-      const message = err.response?.data?.message || err.message;
-      alert(`Failed to create product: ${message}`);
-    } finally {
-      setCreating(false);
-    }
-  };
-
+  // Complete Variants Handlers (Copied from Products page)
   const handleOpenVariants = async (product: Product) => {
     setSelectedProduct(product);
     setVariantsLoading(true);
@@ -253,7 +174,7 @@ const Products = () => {
       const res = await getProductVariants(token!, product.id);
       setVariants(res.data ?? []);
     } catch (err) {
-      alert("Failed to load variants.");
+      showToastNotification("Failed to load variants.", "error");
     } finally {
       setVariantsLoading(false);
     }
@@ -261,7 +182,7 @@ const Products = () => {
 
   const handleCreateVariant = async () => {
     if (!newSku || !newVariantPrice || !newStockQuantity) {
-      alert("SKU, price, and stock quantity are required.");
+      showToastNotification("All variant fields are required.", "error");
       return;
     }
     try {
@@ -280,53 +201,44 @@ const Products = () => {
       setShowCreateVariant(false);
       showToastNotification("Product variant saved successfully!");
     } catch (err: any) {
-      const message = err.response?.data?.message || err.message;
-      alert(`Failed to create variant: ${message}`);
+      showToastNotification("Failed to create variant.", "error");
     } finally {
       setCreatingVariant(false);
     }
   };
 
-  const productColumns = [
+  // Filter products matching category parameter
+  const filteredProducts = products.filter((product) => {
+    if (selectedCategoryId === "ALL") return true;
+    const assigned: any[] = product.categories ?? [];
+    return assigned.some(
+      (cat) =>
+        Number(cat?.id ?? cat?.category_id) === Number(selectedCategoryId),
+    );
+  });
+
+  // Table Configuration Ordered Layout: ID | Name | Category | Price | Variants
+  const columns = [
     { header: "ID", accessor: "id" as keyof Product },
     { header: "Name", accessor: "name" as keyof Product },
-    { header: "Description", accessor: "description" as keyof Product },
     {
-      header: "Price",
-      accessor: (row: Product) => `$${parseFloat(row.price).toFixed(2)}`,
-    },
-    {
-      header: "Status",
-      accessor: (row: Product) => (
-        <Toggle
-          checked={row.is_active}
-          onChange={() => handleToggleProductActive(row.id, row.is_active)}
-          labelRight={row.is_active ? "Active" : "Inactive"}
-        />
-      ),
-    },
-    {
-      header: "Categories",
+      header: "Category",
       accessor: (row: Product) => {
         const assigned: any[] = row.categories ?? [];
         const currentSearchTerm = searchInputs[row.id] ?? "";
 
         const availableToAdd = allCategories.filter((c) => {
-          const isNotAssigned = !assigned.some((a) => {
-            const assignedId = a?.id ?? a?.category_id;
-            return Number(assignedId) === Number(c.id);
-          });
-          const matchesSearch = c.name
-            .toLowerCase()
-            .includes(currentSearchTerm.toLowerCase());
-          return isNotAssigned && matchesSearch;
+          const isNotAssigned = !assigned.some(
+            (a) => Number(a?.id ?? a?.category_id) === Number(c.id),
+          );
+          return (
+            isNotAssigned &&
+            c.name.toLowerCase().includes(currentSearchTerm.toLowerCase())
+          );
         });
 
         return (
           <div className="flex flex-wrap items-center gap-2 relative">
-            {assigned.length === 0 && (
-              <span className="text-gray-400 text-xs">No categories</span>
-            )}
             {assigned.map((cat) => {
               const catId = cat?.id ?? cat?.category_id;
               const catName =
@@ -334,9 +246,6 @@ const Products = () => {
                 allCategories.find((c) => Number(c.id) === Number(catId))
                   ?.name ||
                 `Cat #${catId}`;
-
-              if (!catId) return null;
-
               return (
                 <span
                   key={catId}
@@ -345,8 +254,7 @@ const Products = () => {
                   {catName}
                   <button
                     onClick={() => handleRemoveCategory(row.id, catId)}
-                    className="text-blue-400 hover:text-red-500 transition ml-0.5 leading-none font-bold"
-                    title="Remove category"
+                    className="text-blue-400 hover:text-red-500 transition ml-0.5 font-bold"
                   >
                     ×
                   </button>
@@ -364,7 +272,6 @@ const Products = () => {
                   );
                 }}
                 className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 hover:bg-blue-600 hover:text-white text-gray-600 text-xs font-bold transition"
-                title="Add category"
               >
                 +
               </button>
@@ -421,6 +328,10 @@ const Products = () => {
       },
     },
     {
+      header: "Price",
+      accessor: (row: Product) => `$${parseFloat(row.price).toFixed(2)}`,
+    },
+    {
       header: "Variants",
       accessor: (row: Product) => (
         <button
@@ -458,11 +369,9 @@ const Products = () => {
       <Navbar />
 
       {toast.show && (
-        <div className="fixed bottom-5 right-5 z-[999] flex items-center gap-3 bg-gray-900 text-white text-sm px-5 py-3 rounded-lg shadow-2xl border-l-4 border-emerald-500 transition-all duration-300 transform translate-y-0 animate-bounce">
-          <span className="flex h-2 w-2 relative">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
+        <div
+          className={`fixed bottom-5 right-5 z-[999] flex items-center gap-3 bg-gray-900 text-white text-sm px-5 py-3 rounded-lg shadow-2xl border-l-4 ${toast.type === "error" ? "border-red-500" : "border-emerald-500"} transition-all duration-300 transform translate-y-0 animate-bounce`}
+        >
           <p className="font-medium">{toast.message}</p>
         </div>
       )}
@@ -470,120 +379,54 @@ const Products = () => {
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 p-8 bg-gray-50">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-2xl font-bold text-gray-800">Products</h2>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowCreateProduct(true);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded transition"
-            >
-              + New Product
-            </button>
-          </div>
-          <p className="text-sm text-gray-500 mb-8">
-            Manage products and their variants
-          </p>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded px-4 py-3 mb-6">
-              {error}
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">Categories</h2>
+              <p className="text-sm text-gray-500">
+                Filter and assign product collections
+              </p>
             </div>
-          )}
+
+            <div className="flex items-center gap-2 bg-white px-3 py-2 border border-gray-200 rounded-lg shadow-sm">
+              <label
+                htmlFor="categoryFilter"
+                className="text-xs font-semibold text-gray-500 uppercase tracking-wider"
+              >
+                Filter:
+              </label>
+              <select
+                id="categoryFilter"
+                value={selectedCategoryId}
+                onChange={(e) => setSelectedCategoryId(e.target.value)}
+                className="bg-transparent text-sm font-medium text-gray-700 focus:outline-none cursor-pointer pr-4"
+              >
+                <option value="ALL">All Categories</option>
+                {allCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           {loading ? (
-            <p className="text-sm text-gray-400">Loading products...</p>
+            <p className="text-sm text-gray-400">Loading catalog contents...</p>
           ) : (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              // Custom table container targeting all row variants matching inactive data state markers
-              className="[&_tr]:transition-all [&_tr]:duration-200 [&_tr:has(button[aria-checked=false])]:opacity-40 [&_tr:has(button[aria-checked=false])]:bg-gray-100/40 [&_tr:has(button[aria-checked=false])]:grayscale-[40%]"
-            >
-              <Table columns={productColumns} data={products} />
+            <div onClick={(e) => e.stopPropagation()}>
+              {filteredProducts.length === 0 ? (
+                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+                  <p className="text-gray-400 text-sm italic">
+                    No products matched to this criteria context.
+                  </p>
+                </div>
+              ) : (
+                <Table columns={columns} data={filteredProducts} />
+              )}
             </div>
           )}
 
-          {/* Create Product Modal */}
-          {showCreateProduct && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
-                <h3 className="text-lg font-bold text-gray-800 mb-6">
-                  Create New Product
-                </h3>
-                <div className="flex flex-col gap-4 mb-6">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">
-                      Name
-                    </label>
-                    <input
-                      type="text"
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      placeholder="e.g. Running Shoes"
-                      className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">
-                      Description
-                    </label>
-                    <input
-                      type="text"
-                      value={newDescription}
-                      onChange={(e) => setNewDescription(e.target.value)}
-                      placeholder="e.g. High performance running shoes"
-                      className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-gray-700">
-                      Price
-                    </label>
-                    <input
-                      type="number"
-                      value={newPrice}
-                      onChange={(e) => setNewPrice(e.target.value)}
-                      placeholder="e.g. 59.99"
-                      className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={newIsActive}
-                      onChange={(e) => setNewIsActive(e.target.checked)}
-                      className="accent-blue-600"
-                      id="is_active"
-                    />
-                    <label
-                      htmlFor="is_active"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Active
-                    </label>
-                  </div>
-                </div>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => setShowCreateProduct(false)}
-                    className="px-4 py-2 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreateProduct}
-                    disabled={creating}
-                    className={`px-4 py-2 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition ${creating ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    {creating ? "Creating..." : "Create Product"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Variants Overlay View */}
+          {/* Variants Overlay View (Copied Module) */}
           {selectedProduct && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-3xl">
@@ -601,11 +444,13 @@ const Products = () => {
                 <p className="text-sm text-gray-500 mb-6">
                   Product ID: {selectedProduct.id}
                 </p>
+
                 {variantsLoading ? (
                   <p className="text-sm text-gray-400">Loading variants...</p>
                 ) : (
                   <Table columns={variantColumns} data={variants} />
                 )}
+
                 <div className="flex justify-end mt-6">
                   <button
                     onClick={() => {
@@ -620,7 +465,7 @@ const Products = () => {
                 </div>
 
                 {showCreateVariant && (
-                  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-60">
+                  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
                     <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
                       <h3 className="text-lg font-bold text-gray-800 mb-6">
                         Add Variant to {selectedProduct.name}
@@ -692,4 +537,4 @@ const Products = () => {
   );
 };
 
-export default Products;
+export default CategoryFilteredProducts;
