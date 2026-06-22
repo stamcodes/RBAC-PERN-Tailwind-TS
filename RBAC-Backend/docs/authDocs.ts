@@ -111,15 +111,11 @@
  *             type: object
  *             required:
  *               - email
- *               - currentPassword
  *               - newPassword
  *             properties:
  *               email:
  *                 type: string
  *                 example: alex@test.com
- *               currentPassword:
- *                 type: string
- *                 example: SuperSecretPassword123
  *               newPassword:
  *                 type: string
  *                 example: BrandNewPassword2026!
@@ -127,13 +123,12 @@
  *       200:
  *         description: Password altered successfully.
  *       400:
- *         description: Missing fields.
- *       401:
- *         description: Invalid current verification details.
+ *         description: Missing email or new password.
+ *       404:
+ *         description: No account found with that email.
  *       500:
  *         description: Server error.
  */
-
 // ==========================================
 // 5. PATCH /api/auth/deactivate
 // ==========================================

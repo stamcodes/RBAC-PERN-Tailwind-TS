@@ -120,19 +120,22 @@ export const getMe = async (req: AuthenticatedRequest, res: Response) => {
 // 4. POST /api/auth/reset-password
 export const resetPassword = async (req: Request, res: Response) => {
   try {
-    const { email, currentPassword, newPassword } = req.body;
-    if (!email || !currentPassword || !newPassword) {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
       return res
         .status(400)
-        .json({ success: false, message: "All fields are required." });
+        .json({
+          success: false,
+          message: "Email and new password are required.",
+        });
     }
 
     const user = await db("users").where({ email }).first();
-    if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid authorization verification details.",
-      });
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "No account found with that email." });
     }
 
     const newHashedPassword = await bcrypt.hash(newPassword, 10);

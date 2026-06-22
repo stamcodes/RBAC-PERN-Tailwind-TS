@@ -20,12 +20,10 @@ export const getAllUsers = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, data: users });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to fetch user directory records.",
-      });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch user directory records.",
+    });
   }
 };
 
@@ -47,23 +45,19 @@ export const getUserById = async (req: Request, res: Response) => {
       .first();
 
     if (!user) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "Target user record could not be found.",
-        });
+      return res.status(404).json({
+        success: false,
+        message: "Target user record could not be found.",
+      });
     }
 
     return res.status(200).json({ success: true, data: user });
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        message: "Error reading target profile context.",
-      });
+    return res.status(500).json({
+      success: false,
+      message: "Error reading target profile context.",
+    });
   }
 };
 
@@ -74,22 +68,18 @@ export const updateUserRole = async (req: Request, res: Response) => {
     const { role_id } = req.body;
 
     if (!role_id) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "The role_id parameter is required.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "The role_id parameter is required.",
+      });
     }
 
     const targetRole = await db("roles").where({ id: role_id }).first();
     if (!targetRole) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "The specified target role does not exist.",
-        });
+      return res.status(404).json({
+        success: false,
+        message: "The specified target role does not exist.",
+      });
     }
 
     const updatedCount = await db("users")
@@ -97,20 +87,16 @@ export const updateUserRole = async (req: Request, res: Response) => {
       .update({ role_id, updated_at: new Date() });
 
     if (updatedCount === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "Target user profile record was not found.",
-        });
+      return res.status(404).json({
+        success: false,
+        message: "Target user profile record was not found.",
+      });
     }
 
-    return res
-      .status(200)
-      .json({
-        success: true,
-        message: `User role changed successfully to '${targetRole.name}'.`,
-      });
+    return res.status(200).json({
+      success: true,
+      message: `User role changed successfully to '${targetRole.name}'.`,
+    });
   } catch (error) {
     console.error(error);
     return res
@@ -134,12 +120,10 @@ export const deactivateUser = async (req: Request, res: Response) => {
         .json({ success: false, message: "Target user account not found." });
     }
 
-    return res
-      .status(200)
-      .json({
-        success: true,
-        message: "User account deactivated successfully.",
-      });
+    return res.status(200).json({
+      success: true,
+      message: "User account deactivated successfully.",
+    });
   } catch (error) {
     console.error(error);
     return res
@@ -167,12 +151,10 @@ export const createUser = async (req: Request, res: Response) => {
 
     const existing = await db("users").where({ email }).first();
     if (existing) {
-      return res
-        .status(409)
-        .json({
-          success: false,
-          message: "A user with that email already exists.",
-        });
+      return res.status(409).json({
+        success: false,
+        message: "A user with that email already exists.",
+      });
     }
 
     const roleExists = await db("roles").where({ id: role_id }).first();
@@ -200,5 +182,53 @@ export const createUser = async (req: Request, res: Response) => {
     return res
       .status(500)
       .json({ success: false, message: "Failed to create user." });
+  }
+};
+
+// PATCH /api/users/:id/password
+export const resetUserPassword = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { newPassword } = req.body;
+
+    if (!newPassword) {
+      return res
+        .status(400)
+        .json({ success: false, message: "newPassword is required." });
+    }
+
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Password must be at least 8 characters.",
+        });
+    }
+
+    const user = await db("users").where({ id }).first();
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await db("users")
+      .where({ id })
+      .update({ password: hashedPassword, updated_at: new Date() });
+
+    return res
+      .status(200)
+      .json({
+        success: true,
+        message: `Password for '${user.name}' reset successfully.`,
+      });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to reset password." });
   }
 };

@@ -114,3 +114,43 @@
  *       500:
  *         description: Server error.
  */
+
+// ==========================================
+// PATCH /api/users/:id/password
+// ==========================================
+/**
+ * @openapi
+ * /api/users/{id}/password:
+ *   patch:
+ *     summary: Admin override to reset a user's password
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The ID of the user whose password is being reset
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - newPassword
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 example: NewSecurePassword123!
+ *     responses:
+ *       200:
+ *         description: Password reset successfully.
+ *       400:
+ *         description: Missing or invalid newPassword.
+ *       404:
+ *         description: User not found.
+ *       500:
+ *         description: Server error.
+ */
