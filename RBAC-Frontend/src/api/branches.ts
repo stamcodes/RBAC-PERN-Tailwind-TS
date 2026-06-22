@@ -14,6 +14,14 @@ export const getAllBranches = async (token: string) => {
   return response.data;
 };
 
+export const getBranchUsers = async (token: string, branchId: number) => {
+  const response = await axios.get(
+    `${BASE_URL}/api/branches/${branchId}/users`,
+    authHeader(token),
+  );
+  return response.data;
+};
+
 export const createBranch = async (
   token: string,
   name: string,

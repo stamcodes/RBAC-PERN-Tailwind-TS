@@ -94,3 +94,32 @@
  *       500:
  *         description: Server error.
  */
+
+// ==========================================
+// GET /api/branches/:id/users
+// ==========================================
+/**
+ * @openapi
+ * /api/branches/{id}/users:
+ *   get:
+ *     summary: Get all users assigned to a branch
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *         description: Branch ID
+ *     responses:
+ *       200:
+ *         description: Branch users retrieved successfully.
+ *       400:
+ *         description: Invalid branch ID.
+ *       404:
+ *         description: Branch not found.
+ *       500:
+ *         description: Server error.
+ */

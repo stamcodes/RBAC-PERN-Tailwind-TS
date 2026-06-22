@@ -89,3 +89,36 @@ export const assignPermissions = async (req: Request, res: Response) => {
       .json({ success: false, message: "Failed to assign permissions." });
   }
 };
+
+//21. GET /api/roles/:id/permissions
+export const getRolePermissions = async (req: Request, res: Response) => {
+  try {
+    const result = roleIdParamSchema.safeParse(req.params);
+    if (!result.success) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid role ID format." });
+    }
+
+    const targetRoleId = parseInt(result.data.id, 10);
+
+    const role = await db("roles").where({ id: targetRoleId }).first();
+    if (!role) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Role not found." });
+    }
+
+    const permissions = await db("role_permissions")
+      .join("permissions", "role_permissions.permission_id", "permissions.id")
+      .where("role_permissions.role_id", targetRoleId)
+      .select("permissions.id", "permissions.name", "permissions.description");
+
+    return res.status(200).json({ success: true, data: permissions });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch role permissions." });
+  }
+};

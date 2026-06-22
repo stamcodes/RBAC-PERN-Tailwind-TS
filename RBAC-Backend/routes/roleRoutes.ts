@@ -9,6 +9,7 @@ router.use(authenticateToken);
 router.use(requireAdmin);
 
 router.get("/", roleController.getAllRoles);
+router.get("/:id/permissions", roleController.getRolePermissions);
 router.post("/:id/permissions", roleController.assignPermissions);
 
 export default router;

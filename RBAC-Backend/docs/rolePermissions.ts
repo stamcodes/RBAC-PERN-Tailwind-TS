@@ -43,7 +43,6 @@
 // ==========================================
 // 12. POST /api/roles/:id/permissions
 // ==========================================
-
 /**
  * @openapi
  * /api/roles/{id}/permissions:
@@ -77,6 +76,35 @@
  *         description: Permissions assigned successfully.
  *       400:
  *         description: Missing or malformed permissionIds.
+ *       404:
+ *         description: Role not found.
+ *       500:
+ *         description: Server error.
+ */
+
+// ==========================================
+// GET /api/roles/:id/permissions
+// ==========================================
+/**
+ * @openapi
+ * /api/roles/{id}/permissions:
+ *   get:
+ *     summary: Get all permissions assigned to a role
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *         description: The role ID
+ *     responses:
+ *       200:
+ *         description: Role permissions retrieved successfully.
+ *       400:
+ *         description: Invalid role ID.
  *       404:
  *         description: Role not found.
  *       500:

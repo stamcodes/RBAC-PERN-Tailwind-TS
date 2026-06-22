@@ -99,3 +99,40 @@ export const assignUserToBranch = async (req: Request, res: Response) => {
       .json({ success: false, message: "Failed to assign user to branch." });
   }
 };
+
+//22. GET /api/branches/:id/users
+export const getBranchUsers = async (req: Request, res: Response) => {
+  try {
+    const branchId = parseInt(req.params.id as string, 10);
+    if (isNaN(branchId)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid branch ID." });
+    }
+
+    const branch = await db("branches").where({ id: branchId }).first();
+    if (!branch) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Branch not found." });
+    }
+
+    const users = await db("user_branches")
+      .join("users", "user_branches.user_id", "users.id")
+      .join("roles", "users.role_id", "roles.id")
+      .where("user_branches.branch_id", branchId)
+      .select(
+        "users.id",
+        "users.name",
+        "users.email",
+        "roles.name as role_name",
+      );
+
+    return res.status(200).json({ success: true, data: users });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch branch users." });
+  }
+};

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
 import { getAllUsers } from "../api/users";
 import { getAllProducts } from "../api/products";
@@ -16,6 +17,7 @@ interface Stats {
 
 const Dashboard = () => {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState<Stats>({
     users: 0,
     products: 0,
@@ -51,10 +53,30 @@ const Dashboard = () => {
   }, [token]);
 
   const cards = [
-    { label: "Total Users", value: stats.users, color: "bg-blue-500" },
-    { label: "Total Products", value: stats.products, color: "bg-green-500" },
-    { label: "Total Branches", value: stats.branches, color: "bg-purple-500" },
-    { label: "Total Roles", value: stats.roles, color: "bg-yellow-500" },
+    {
+      label: "Total Users",
+      value: stats.users,
+      color: "bg-blue-500",
+      path: "/users",
+    },
+    {
+      label: "Total Products",
+      value: stats.products,
+      color: "bg-green-500",
+      path: "/products",
+    },
+    {
+      label: "Total Branches",
+      value: stats.branches,
+      color: "bg-purple-500",
+      path: "/branches",
+    },
+    {
+      label: "Total Roles",
+      value: stats.roles,
+      color: "bg-yellow-500",
+      path: "/roles",
+    },
   ];
 
   return (
@@ -73,7 +95,8 @@ const Dashboard = () => {
               {cards.map((card) => (
                 <div
                   key={card.label}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col gap-2"
+                  onClick={() => navigate(card.path)}
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col gap-2 cursor-pointer hover:shadow-md hover:border-gray-300 transition"
                 >
                   <div className={`w-3 h-3 rounded-full ${card.color}`} />
                   <p className="text-3xl font-bold text-gray-800">

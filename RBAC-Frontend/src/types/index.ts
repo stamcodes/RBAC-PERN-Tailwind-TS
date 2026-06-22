@@ -9,12 +9,11 @@ export interface Role {
   id: number;
   name: string; // Matches backend database column
 }
-
 export interface Permission {
   id: number;
-  name: string; // Matches backend database column
+  name: string;
+  description?: string;
 }
-
 export interface Branch {
   id: number;
   name: string;
