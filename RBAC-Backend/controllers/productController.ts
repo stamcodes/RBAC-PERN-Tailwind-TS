@@ -269,3 +269,56 @@ export const updateProductVariant = async (req: Request, res: Response) => {
       .json({ success: false, message: "Failed to update variant." });
   }
 };
+
+// GET /api/products/variant-values
+export const getVariantValues = async (req: Request, res: Response) => {
+  try {
+    const rows = await db("variant_types")
+      .select(
+        "variant_types.id as typeId",
+        "variant_types.type_name as typeName",
+        "variant_values.id as valueId",
+        "variant_values.value_name as valueName",
+      )
+      .leftJoin(
+        "variant_values",
+        "variant_types.id",
+        "variant_values.variant_type_id",
+      )
+      .orderBy(["variant_types.id", "variant_values.id"]);
+
+    interface GroupedType {
+      typeId: number;
+      typeName: string;
+      values: { id: number; name: string }[];
+    }
+
+    const grouped: { [key: number]: GroupedType } = {};
+
+    for (const row of rows) {
+      if (!grouped[row.typeId]) {
+        grouped[row.typeId] = {
+          typeId: row.typeId,
+          typeName: row.typeName,
+          values: [],
+        };
+      }
+      if (row.valueId) {
+        grouped[row.typeId].values.push({
+          id: row.valueId,
+          name: row.valueName,
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: Object.values(grouped),
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch variant values." });
+  }
+};

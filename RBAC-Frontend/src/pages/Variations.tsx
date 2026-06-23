@@ -3,13 +3,13 @@ import { useAuth } from "../context/authContext";
 import {
   getAllProducts,
   getProductVariants,
-  createProductVariant,
   updateProductVariant,
 } from "../api/products";
 import type { Product, ProductVariant } from "../types";
 import Navbar from "../components/layout/Navbar";
 import Sidebar from "../components/layout/Sidebar";
 import Toggle from "../components/ui/Toggle";
+import AddVariantModal from "../components/ui/Modal";
 
 interface ToastState {
   show: boolean;
@@ -36,31 +36,18 @@ const Variations = () => {
     type: "success",
   });
 
-  // Inline Editing Map states tracker
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
   const [editFields, setEditFields] = useState({
     price: "",
     qty: "",
     sku: "",
-    color: "",
-    weight: "",
   });
 
-  // Modal Creation Form States
   const [activeProductForModal, setActiveProductForModal] =
     useState<Product | null>(null);
-  const [sku, setSku] = useState("");
-  const [price, setPrice] = useState("");
-  const [qty, setQty] = useState("");
-  const [color, setColor] = useState("");
-  const [weight, setWeight] = useState("");
-  const [valueIdsString, setValueIdsString] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (token) {
-      loadProductsAndVariants();
-    }
+    if (token) loadProductsAndVariants();
   }, [token]);
 
   const showToastNotification = (
@@ -68,9 +55,7 @@ const Variations = () => {
     type: "success" | "error" = "success",
   ) => {
     setToast({ show: true, message, type });
-    setTimeout(() => {
-      setToast((prev) => ({ ...prev, show: false }));
-    }, 4000);
+    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
   const loadProductsAndVariants = async () => {
@@ -87,10 +72,21 @@ const Variations = () => {
 
             const formattedVariants: ExtendedVariant[] = rawVariants.map(
               (v: any) => {
-                const colorOpt = v.options?.find(
+                let parsedOptions = [];
+                if (Array.isArray(v.options)) {
+                  parsedOptions = v.options;
+                } else if (typeof v.options === "string") {
+                  try {
+                    parsedOptions = JSON.parse(v.options);
+                  } catch (_) {
+                    parsedOptions = [];
+                  }
+                }
+
+                const colorOpt = parsedOptions.find(
                   (o: any) => o.type?.toLowerCase() === "color",
                 );
-                const weightOpt = v.options?.find(
+                const weightOpt = parsedOptions.find(
                   (o: any) => o.type?.toLowerCase() === "weight",
                 );
 
@@ -101,16 +97,14 @@ const Variations = () => {
                 };
               },
             );
-
             return { ...product, fetchedVariants: formattedVariants };
-          } catch (err) {
+          } catch {
             return { ...product, fetchedVariants: [] };
           }
         }),
       );
-
       setDataPayload(fullyMappedData);
-    } catch (err) {
+    } catch {
       showToastNotification(
         "Failed to organize product variants layout.",
         "error",
@@ -135,15 +129,12 @@ const Variations = () => {
     );
   };
 
-  // Triggers context inline field edit switches
   const startEditingRow = (variant: ExtendedVariant) => {
     setEditingRowId(variant.id);
     setEditFields({
       sku: variant.sku,
       price: variant.price.toString(),
       qty: variant.stock_quantity.toString(),
-      color: variant.color || "",
-      weight: variant.weight || "",
     });
   };
 
@@ -153,14 +144,12 @@ const Variations = () => {
         sku: editFields.sku,
         price: parseFloat(editFields.price),
         stock_quantity: parseInt(editFields.qty, 10),
-        color: editFields.color,
-        weight: editFields.weight,
       });
 
       showToastNotification("Database successfully updated!", "success");
       setEditingRowId(null);
-      loadProductsAndVariants();
-    } catch (e) {
+      await loadProductsAndVariants();
+    } catch {
       showToastNotification(
         "Failed to save changes to backend database.",
         "error",
@@ -168,56 +157,15 @@ const Variations = () => {
     }
   };
 
-  const handleCreateVariantSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!sku || !price || !qty || !activeProductForModal) return;
-
-    try {
-      setSubmitting(true);
-      const variantValueIds = valueIdsString
-        ? valueIdsString
-            .split(",")
-            .map((id) => parseInt(id.trim(), 10))
-            .filter((id) => !isNaN(id))
-        : [];
-
-      // FIXED: Sending color and weight directly inside the body payload config object parameter wrapper
-      await createProductVariant(
-        token!,
-        activeProductForModal.id,
-        sku,
-        parseFloat(price),
-        parseInt(qty, 10),
-        variantValueIds,
-        color,
-        weight,
-      );
-
-      showToastNotification("Variant successfully populated!");
-      setActiveProductForModal(null);
-      setSku("");
-      setPrice("");
-      setQty("");
-      setColor("");
-      setWeight("");
-      setValueIdsString("");
-      loadProductsAndVariants();
-    } catch (err: any) {
-      showToastNotification(
-        err.response?.data?.message || "Failed to create variant.",
-        "error",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Navbar />
+
       {toast.show && (
         <div
-          className={`fixed bottom-5 right-5 z-[999] bg-gray-900 text-white text-sm px-5 py-3 rounded-lg shadow-2xl border-l-4 ${toast.type === "error" ? "border-red-500" : "border-emerald-500"}`}
+          className={`fixed bottom-5 right-5 z-[999] bg-gray-900 text-white text-sm px-5 py-3 rounded-lg shadow-2xl border-l-4 ${
+            toast.type === "error" ? "border-red-500" : "border-emerald-500"
+          }`}
         >
           <p className="font-medium">{toast.message}</p>
         </div>
@@ -292,15 +240,18 @@ const Variations = () => {
                                 parseFloat(editFields.price) !==
                                   parseFloat(variant.price as any) ||
                                 parseInt(editFields.qty, 10) !==
-                                  parseInt(variant.stock_quantity as any, 10) ||
-                                editFields.color !== (variant.color || "") ||
-                                editFields.weight !== (variant.weight || ""));
+                                  parseInt(variant.stock_quantity as any, 10));
 
                             return (
                               <tr
                                 key={variant.id}
-                                className={`transition-all duration-200 ${isDeactivated ? "opacity-30 bg-gray-100/40 grayscale" : ""}`}
+                                className={`transition-all duration-200 ${
+                                  isDeactivated
+                                    ? "opacity-30 bg-gray-100/40 grayscale"
+                                    : ""
+                                }`}
                               >
+                                {/* SKU */}
                                 <td className="py-3 px-4">
                                   <div className="text-xs font-mono font-bold text-gray-400">
                                     ID: {variant.id}
@@ -323,44 +274,20 @@ const Variations = () => {
                                     </div>
                                   )}
                                 </td>
+
+                                {/* Color — read-only, driven by variant options */}
                                 <td className="py-3 px-4">
-                                  {isEditingRow ? (
-                                    <input
-                                      type="text"
-                                      value={editFields.color}
-                                      placeholder="e.g. Red"
-                                      onChange={(e) =>
-                                        setEditFields({
-                                          ...editFields,
-                                          color: e.target.value,
-                                        })
-                                      }
-                                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs max-w-[90px] focus:outline-blue-500"
-                                    />
-                                  ) : (
-                                    <span className="font-medium">
-                                      {variant.color || "—"}
-                                    </span>
-                                  )}
+                                  <span className="font-medium">
+                                    {variant.color || "—"}
+                                  </span>
                                 </td>
+
+                                {/* Weight — read-only, driven by variant options */}
                                 <td className="py-3 px-4 text-xs font-mono">
-                                  {isEditingRow ? (
-                                    <input
-                                      type="text"
-                                      value={editFields.weight}
-                                      placeholder="e.g. 5kg"
-                                      onChange={(e) =>
-                                        setEditFields({
-                                          ...editFields,
-                                          weight: e.target.value,
-                                        })
-                                      }
-                                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs max-w-[80px] focus:outline-blue-500"
-                                    />
-                                  ) : (
-                                    <span>{variant.weight || "—"}</span>
-                                  )}
+                                  <span>{variant.weight || "—"}</span>
                                 </td>
+
+                                {/* Price */}
                                 <td className="py-3 px-4">
                                   {isEditingRow ? (
                                     <input
@@ -384,6 +311,8 @@ const Variations = () => {
                                     </span>
                                   )}
                                 </td>
+
+                                {/* Qty */}
                                 <td className="py-3 px-4">
                                   {isEditingRow ? (
                                     <input
@@ -401,6 +330,8 @@ const Variations = () => {
                                     <span>{variant.stock_quantity}</span>
                                   )}
                                 </td>
+
+                                {/* Status / Actions */}
                                 <td className="py-3 px-4">
                                   <div className="flex items-center gap-4">
                                     <Toggle
@@ -415,7 +346,6 @@ const Variations = () => {
                                         !isDeactivated ? "Active" : "Inactive"
                                       }
                                     />
-
                                     <div className="flex items-center gap-2">
                                       {isEditingRow ? (
                                         <>
@@ -465,90 +395,18 @@ const Variations = () => {
         </main>
       </div>
 
-      {/* Creation Modal View Setup */}
-      {activeProductForModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <form
-            onSubmit={handleCreateVariantSubmit}
-            className="bg-white rounded-lg p-8 w-full max-w-md"
-          >
-            <h3 className="text-lg font-bold text-gray-800">
-              Add Variant to {activeProductForModal.name}
-            </h3>
-            <div className="flex flex-col gap-4 my-4">
-              <input
-                type="text"
-                required
-                value={sku}
-                placeholder="SKU Code"
-                onChange={(e) => setSku(e.target.value)}
-                className="border p-2 rounded text-sm w-full"
-              />
-
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={color}
-                  placeholder="Color (Optional, e.g. Blue)"
-                  onChange={(e) => setColor(e.target.value)}
-                  className="border p-2 rounded text-sm"
-                />
-                <input
-                  type="text"
-                  value={weight}
-                  placeholder="Weight (Optional, e.g. 12kg)"
-                  onChange={(e) => setWeight(e.target.value)}
-                  className="border p-2 rounded text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={price}
-                  placeholder="Price ($)"
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="border p-2 rounded text-sm"
-                />
-                <input
-                  type="number"
-                  required
-                  value={qty}
-                  placeholder="Stock Qty"
-                  onChange={(e) => setQty(e.target.value)}
-                  className="border p-2 rounded text-sm"
-                />
-              </div>
-
-              <input
-                type="text"
-                value={valueIdsString}
-                placeholder="Explicit Option Value IDs (Optional: e.g. 1, 4)"
-                onChange={(e) => setValueIdsString(e.target.value)}
-                className="border p-2 rounded text-xs font-mono"
-              />
-            </div>
-            <div className="flex gap-2 justify-end border-t pt-3">
-              <button
-                type="button"
-                onClick={() => setActiveProductForModal(null)}
-                className="border px-4 py-1.5 rounded text-sm text-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium"
-              >
-                {submitting ? "Saving..." : "Save Variant"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {/* AddVariantModal — cleanly extracted, no inline form needed */}
+      <AddVariantModal
+        isOpen={activeProductForModal !== null}
+        product={activeProductForModal}
+        token={token}
+        onClose={() => setActiveProductForModal(null)}
+        onSuccess={(msg) => {
+          showToastNotification(msg, "success");
+          loadProductsAndVariants();
+        }}
+        onError={(msg) => showToastNotification(msg, "error")}
+      />
     </div>
   );
 };

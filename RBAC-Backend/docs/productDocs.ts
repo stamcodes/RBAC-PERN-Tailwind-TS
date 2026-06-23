@@ -203,3 +203,55 @@
  *       500:
  *         description: Server error.
  */
+
+//Get product variant values
+/**
+ * @swagger
+ * /api/products/variant-values:
+ *   get:
+ *     summary: Get all variant types with their values
+ *     description: Returns all variant types (Color, Size, Material, Weight) grouped with their associated values. Used to populate dropdowns in the Add Variant modal.
+ *     tags:
+ *       - Products
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully fetched variant types and values
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       typeId:
+ *                         type: integer
+ *                         example: 1
+ *                       typeName:
+ *                         type: string
+ *                         example: Color
+ *                       values:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: integer
+ *                               example: 1
+ *                             name:
+ *                               type: string
+ *                               example: Red
+ *       401:
+ *         description: Unauthorized - invalid or missing token
+ *       403:
+ *         description: Forbidden - admin access required
+ *       500:
+ *         description: Failed to fetch variant values
+ */

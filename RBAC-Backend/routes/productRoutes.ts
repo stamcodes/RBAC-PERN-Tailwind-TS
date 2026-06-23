@@ -11,11 +11,11 @@ router.use(requireAdmin);
 
 router.get("/", productController.getAllProducts);
 router.post("/", productController.createProduct);
+router.get("/variant-values", productController.getVariantValues); // ← ADD THIS (must be before /:id)
 router.get("/:id/variants", productController.getProductVariants);
 router.post("/:id/variants", productController.createProductVariant);
 router.put("/variants/:variantId", productController.updateProductVariant);
 
-// Category assignment — handlers live in categoryController
 router.post("/:id/categories", categoryController.addProductCategory);
 router.delete(
   "/:id/categories/:categoryId",

@@ -30,6 +30,14 @@ export const createProduct = async (
   return response.data;
 };
 
+export const getAllVariantValues = async (token: string) => {
+  const response = await axios.get(
+    `${BASE_URL}/api/products/variant-values`,
+    authHeader(token),
+  );
+  return response.data;
+};
+
 export const getProductVariants = async (token: string, productId: number) => {
   const response = await axios.get(
     `${BASE_URL}/api/products/${productId}/variants`,
@@ -38,6 +46,7 @@ export const getProductVariants = async (token: string, productId: number) => {
   return response.data;
 };
 
+// color and weight string params removed — selections now flow through variantValueIds
 export const createProductVariant = async (
   token: string,
   productId: number,
@@ -45,12 +54,10 @@ export const createProductVariant = async (
   price: number,
   stock_quantity: number,
   variantValueIds?: number[],
-  color?: string,
-  weight?: string,
 ) => {
   const response = await axios.post(
     `${BASE_URL}/api/products/${productId}/variants`,
-    { sku, price, stock_quantity, variantValueIds, color, weight },
+    { sku, price, stock_quantity, variantValueIds },
     authHeader(token),
   );
   return response.data;
@@ -64,8 +71,6 @@ export const updateProductVariant = async (
     price?: number;
     stock_quantity?: number;
     variantValueIds?: number[];
-    color?: string;
-    weight?: string;
   },
 ) => {
   const response = await axios.put(
