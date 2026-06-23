@@ -4,6 +4,7 @@ import {
   getAllProducts,
   getProductVariants,
   updateProductVariant,
+  toggleVariantActive,
 } from "../api/products";
 import type { Product, ProductVariant } from "../types";
 import Navbar from "../components/layout/Navbar";
@@ -20,6 +21,7 @@ interface ToastState {
 interface ExtendedVariant extends ProductVariant {
   color?: string;
   weight?: string;
+  is_active: boolean;
 }
 
 interface ProductWithVariants extends Product {
@@ -114,19 +116,21 @@ const Variations = () => {
     }
   };
 
-  const handleToggleVariantActive = (
+  const handleToggleVariantActive = async (
     variantId: number,
     currentStatus: boolean,
   ) => {
-    if (currentStatus) {
-      localStorage.setItem(`variant-${variantId}-disabled`, "true");
-    } else {
-      localStorage.removeItem(`variant-${variantId}-disabled`);
+    try {
+      await toggleVariantActive(token!, variantId);
+      showToastNotification(
+        `Variant successfully ${currentStatus ? "deactivated" : "activated"}!`,
+      );
+      // Explicitly wipe the editing lock to force clean row paints
+      setEditingRowId(null);
+      await loadProductsAndVariants();
+    } catch {
+      showToastNotification("Failed to update variant status.", "error");
     }
-    setDataPayload((prev) => [...prev]);
-    showToastNotification(
-      `Variant successfully ${currentStatus ? "deactivated" : "activated"}!`,
-    );
   };
 
   const startEditingRow = (variant: ExtendedVariant) => {
@@ -228,10 +232,7 @@ const Variations = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                           {product.fetchedVariants.map((variant) => {
-                            const isDeactivated =
-                              localStorage.getItem(
-                                `variant-${variant.id}-disabled`,
-                              ) === "true";
+                            const isDeactivated = !variant.is_active;
                             const isEditingRow = editingRowId === variant.id;
 
                             const rowModified =

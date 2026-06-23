@@ -255,3 +255,91 @@
  *       500:
  *         description: Failed to fetch variant values
  */
+/**
+ * @swagger
+ * /api/products/variants/{variantId}/active:
+ *   patch:
+ *     summary: Toggle variant active status
+ *     description: Flips the is_active boolean on a product variant. Fetches the current state, inverts it, persists to DB, and returns the full updated variant record.
+ *     tags:
+ *       - Products
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: variantId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 3
+ *         description: ID of the product variant to toggle
+ *     responses:
+ *       200:
+ *         description: Variant status toggled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 3
+ *                     product_id:
+ *                       type: integer
+ *                       example: 1
+ *                     sku:
+ *                       type: string
+ *                       example: SHOE-RED-42
+ *                     price:
+ *                       type: number
+ *                       format: decimal
+ *                       example: 49.99
+ *                     stock_quantity:
+ *                       type: integer
+ *                       example: 100
+ *                     is_active:
+ *                       type: boolean
+ *                       example: false
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
+ *       404:
+ *         description: Variant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Variant not found.
+ *       401:
+ *         description: Unauthorized - invalid or missing token
+ *       403:
+ *         description: Forbidden - admin access required
+ *       500:
+ *         description: Failed to toggle variant status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Failed to toggle variant status.
+ */

@@ -5,6 +5,7 @@ import {
   createProduct,
   getProductVariants,
   updateProductVariant,
+  toggleVariantActive,
 } from "../api/products";
 import type { Product, ProductVariant } from "../types";
 import Navbar from "../components/layout/Navbar";
@@ -22,6 +23,7 @@ interface ToastState {
 interface ExtendedVariant extends ProductVariant {
   color?: string;
   weight?: string;
+  is_active: boolean;
 }
 
 const Products = () => {
@@ -175,6 +177,21 @@ const Products = () => {
         "Failed to save state change to database.",
         "error",
       );
+    }
+  };
+
+  const handleToggleVariantActive = async (
+    variantId: number,
+    currentStatus: boolean,
+  ) => {
+    try {
+      await toggleVariantActive(token!, variantId);
+      showToastNotification(
+        `Variant ${currentStatus ? "deactivated" : "activated"} successfully!`,
+      );
+      await loadVariantsForProduct(selectedProduct!);
+    } catch {
+      showToastNotification("Failed to update variant status.", "error");
     }
   };
 
@@ -723,36 +740,56 @@ const Products = () => {
                                   )}
                                 </td>
                                 <td className="py-3 px-4">
-                                  <div className="flex items-center gap-2">
-                                    {isEditingRow ? (
-                                      <>
-                                        <button
-                                          onClick={() => setEditingRowId(null)}
-                                          className="text-xs text-gray-400 hover:text-gray-600 font-medium px-2 py-1"
-                                        >
-                                          Cancel
-                                        </button>
-                                        {rowModified && (
+                                  <div className="flex items-center gap-3">
+                                    <Toggle
+                                      checked={variant.is_active}
+                                      onChange={() =>
+                                        handleToggleVariantActive(
+                                          variant.id,
+                                          variant.is_active,
+                                        )
+                                      }
+                                      labelRight={
+                                        variant.is_active
+                                          ? "Active"
+                                          : "Inactive"
+                                      }
+                                    />
+                                    <div className="flex items-center gap-2">
+                                      {isEditingRow ? (
+                                        <>
                                           <button
                                             onClick={() =>
-                                              handleInlineVariantUpdate(variant)
+                                              setEditingRowId(null)
                                             }
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded shadow animate-pulse"
+                                            className="text-xs text-gray-400 hover:text-gray-600 font-medium px-2 py-1"
                                           >
-                                            Update
+                                            Cancel
                                           </button>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <button
-                                        onClick={() =>
-                                          startEditingVariantRow(variant)
-                                        }
-                                        className="text-blue-600 hover:text-blue-800 text-xs font-medium border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-50"
-                                      >
-                                        Edit
-                                      </button>
-                                    )}
+                                          {rowModified && (
+                                            <button
+                                              onClick={() =>
+                                                handleInlineVariantUpdate(
+                                                  variant,
+                                                )
+                                              }
+                                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded shadow animate-pulse"
+                                            >
+                                              Update
+                                            </button>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <button
+                                          onClick={() =>
+                                            startEditingVariantRow(variant)
+                                          }
+                                          className="text-blue-600 hover:text-blue-800 text-xs font-medium border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-50"
+                                        >
+                                          Edit
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 </td>
                               </tr>

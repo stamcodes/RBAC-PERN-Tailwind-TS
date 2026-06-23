@@ -99,17 +99,18 @@ export const getProductVariants = async (req: Request, res: Response) => {
         "product_variants.sku",
         "product_variants.price",
         "product_variants.stock_quantity",
+        "product_variants.is_active", // ← ADD THIS
         db.raw(`
-          COALESCE(
-            json_agg(
-              DISTINCT jsonb_build_object(
-                'type', variant_types.type_name,
-                'value', variant_values.value_name
-              )
-            ) FILTER (WHERE variant_values.id IS NOT NULL),
-            '[]'
-          ) as options
-        `),
+      COALESCE(
+        json_agg(
+          DISTINCT jsonb_build_object(
+            'type', variant_types.type_name,
+            'value', variant_values.value_name
+          )
+        ) FILTER (WHERE variant_values.id IS NOT NULL),
+        '[]'
+      ) as options
+    `),
       )
       .leftJoin(
         "product_variant_options",
@@ -320,5 +321,40 @@ export const getVariantValues = async (req: Request, res: Response) => {
     return res
       .status(500)
       .json({ success: false, message: "Failed to fetch variant values." });
+  }
+};
+
+// PATCH /api/products/variants/:variantId/active
+export const toggleVariantActive = async (req: Request, res: Response) => {
+  try {
+    const variantId = parseInt(req.params.variantId as string, 10);
+
+    // 1. Fetch the existing variant state
+    const variant = await db("product_variants")
+      .where({ id: variantId })
+      .first();
+
+    if (!variant) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Variant not found." });
+    }
+
+    // 2. Perform the update
+    await db("product_variants")
+      .where({ id: variantId })
+      .update({ is_active: !variant.is_active });
+
+    // 3. Explicitly fetch the updated record from the DB
+    const updated = await db("product_variants")
+      .where({ id: variantId })
+      .first();
+
+    return res.status(200).json({ success: true, data: updated });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to toggle variant status." });
   }
 };

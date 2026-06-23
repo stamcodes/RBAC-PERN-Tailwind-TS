@@ -36,6 +36,7 @@ export interface ProductVariant {
   price: string;
   stock_quantity: number;
   options: VariantOption[];
+  is_active: boolean;
 }
 
 export interface VariantOption {

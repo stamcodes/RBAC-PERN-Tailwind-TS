@@ -80,3 +80,12 @@ export const updateProductVariant = async (
   );
   return response.data;
 };
+
+export const toggleVariantActive = async (token: string, variantId: number) => {
+  const response = await axios.patch(
+    `${BASE_URL}/api/products/variants/${variantId}/active`,
+    {},
+    authHeader(token),
+  );
+  return response.data;
+};
