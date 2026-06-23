@@ -6,6 +6,7 @@ import {
   getProductVariants,
   updateProductVariant,
   toggleVariantActive,
+  getAllVariantValues,
 } from "../api/products";
 import type { Product, ProductVariant } from "../types";
 import Navbar from "../components/layout/Navbar";
@@ -21,14 +22,24 @@ interface ToastState {
 }
 
 interface ExtendedVariant extends ProductVariant {
-  color?: string;
-  weight?: string;
   is_active: boolean;
+}
+
+interface VariantValueOption {
+  id: number;
+  name: string;
+}
+
+interface VariantTypeGroup {
+  typeId: number;
+  typeName: string;
+  values: VariantValueOption[];
 }
 
 const Products = () => {
   const { token } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
+  const [variantTypes, setVariantTypes] = useState<VariantTypeGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -63,6 +74,9 @@ const Products = () => {
   // Inline variant edit state
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
   const [editFields, setEditFields] = useState({ sku: "", price: "", qty: "" });
+  const [selectedValues, setSelectedValues] = useState<Record<number, number>>(
+    {},
+  );
 
   // AddVariantModal trigger
   const [addVariantTarget, setAddVariantTarget] = useState<Product | null>(
@@ -75,8 +89,7 @@ const Products = () => {
 
   useEffect(() => {
     if (token) {
-      fetchProducts();
-      fetchAllCategories();
+      initPageData();
     }
   }, [token]);
 
@@ -88,14 +101,29 @@ const Products = () => {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
+  const initPageData = async () => {
+    try {
+      setLoading(true);
+      const res = await getAllVariantValues(token!);
+      setVariantTypes(res.data ?? []);
+      await fetchProducts();
+      await fetchAllCategories();
+    } catch {
+      showToastNotification(
+        "Failed to load layout configuration options.",
+        "error",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchProducts = async () => {
     try {
       const res = await getAllProducts(token!);
       setProducts(res.data ?? []);
     } catch {
       setError("Failed to load products.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -117,33 +145,7 @@ const Products = () => {
     setEditingRowId(null);
     try {
       const res = await getProductVariants(token!, product.id);
-      const rawVariants = res.data ?? [];
-
-      const formatted: ExtendedVariant[] = rawVariants.map((v: any) => {
-        let parsedOptions = [];
-        if (Array.isArray(v.options)) {
-          parsedOptions = v.options;
-        } else if (typeof v.options === "string") {
-          try {
-            parsedOptions = JSON.parse(v.options);
-          } catch {
-            parsedOptions = [];
-          }
-        }
-        const colorOpt = parsedOptions.find(
-          (o: any) => o.type?.toLowerCase() === "color",
-        );
-        const weightOpt = parsedOptions.find(
-          (o: any) => o.type?.toLowerCase() === "weight",
-        );
-        return {
-          ...v,
-          color: colorOpt?.value || "",
-          weight: weightOpt?.value || "",
-        };
-      });
-
-      setVariants(formatted);
+      setVariants(res.data ?? []);
     } catch {
       showToastNotification("Failed to load variants.", "error");
     } finally {
@@ -189,7 +191,7 @@ const Products = () => {
       showToastNotification(
         `Variant ${currentStatus ? "deactivated" : "activated"} successfully!`,
       );
-      await loadVariantsForProduct(selectedProduct!);
+      if (selectedProduct) await loadVariantsForProduct(selectedProduct);
     } catch {
       showToastNotification("Failed to update variant status.", "error");
     }
@@ -320,15 +322,42 @@ const Products = () => {
       price: variant.price.toString(),
       qty: variant.stock_quantity.toString(),
     });
+
+    const initialDropdowns: Record<number, number> = {};
+    if (Array.isArray(variant.options)) {
+      variant.options.forEach((opt: any) => {
+        const matchingGroup = variantTypes.find(
+          (g) => g.typeName.toLowerCase() === opt.type?.toLowerCase(),
+        );
+        const matchingValue = matchingGroup?.values.find(
+          (v) => v.name === opt.value,
+        );
+        if (matchingGroup && matchingValue) {
+          initialDropdowns[matchingGroup.typeId] = matchingValue.id;
+        }
+      });
+    }
+    setSelectedValues(initialDropdowns);
+  };
+
+  const handleDropdownChange = (typeId: number, valueId: number) => {
+    setSelectedValues((prev) => ({ ...prev, [typeId]: valueId }));
   };
 
   const handleInlineVariantUpdate = async (variant: ExtendedVariant) => {
     try {
+      const variantValueIds = Object.values(selectedValues).filter(
+        (id) => id > 0,
+      );
+
       await updateProductVariant(token!, variant.id, {
         sku: editFields.sku,
         price: parseFloat(editFields.price),
         stock_quantity: parseInt(editFields.qty, 10),
+        variantValueIds:
+          variantValueIds.length > 0 ? variantValueIds : undefined,
       });
+
       showToastNotification("Variant updated successfully!", "success");
       setEditingRowId(null);
       await loadVariantsForProduct(selectedProduct!);
@@ -499,7 +528,7 @@ const Products = () => {
 
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 p-8 bg-gray-50">
+        <main className="flex-1 p-8 bg-gray-50 min-w-0">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-2xl font-bold text-gray-800">Products</h2>
             <button
@@ -612,11 +641,11 @@ const Products = () => {
             </div>
           )}
 
-          {/* Variants Overlay */}
+          {/* Variants Overlay Modal */}
           {selectedProduct && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-4xl max-h-[85vh] overflow-y-auto">
-                <div className="flex items-center justify-between mb-1">
+              <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-6xl max-h-[85vh] overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
                   <div>
                     <h3 className="text-lg font-bold text-gray-800">
                       Variants — {selectedProduct.name}
@@ -627,52 +656,58 @@ const Products = () => {
                   </div>
                   <button
                     onClick={() => setAddVariantTarget(selectedProduct)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded transition"
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded transition shadow flex-shrink-0"
                   >
                     + Add Variant
                   </button>
                 </div>
 
-                <div className="mt-6">
+                <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full rounded-md border border-gray-100 bg-white">
                   {variantsLoading ? (
-                    <p className="text-sm text-gray-400">Loading variants...</p>
+                    <p className="text-sm text-gray-400 p-4">
+                      Loading variants...
+                    </p>
                   ) : variants.length === 0 ? (
-                    <p className="text-sm text-gray-400 italic py-4 text-center">
+                    <p className="text-sm text-gray-400 italic py-8 text-center">
                       No variants yet. Click "+ Add Variant" to create one.
                     </p>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
+                    /* Safe absolute width ensures column groups never overlap or compress */
+                    <div className="w-full min-w-[1040px]">
+                      <table className="w-full text-left border-collapse table-fixed">
                         <thead>
-                          <tr className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 bg-gray-50/70">
-                            <th className="py-3 px-4">ID / SKU</th>
-                            <th className="py-3 px-4">Color</th>
-                            <th className="py-3 px-4">Weight</th>
-                            <th className="py-3 px-4">Price</th>
-                            <th className="py-3 px-4">Stock</th>
-                            <th className="py-3 px-4">Actions</th>
+                          <tr className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 bg-gray-50/70 sticky top-0 z-10">
+                            <th className="py-3 px-4 w-[16%]">SKU Code</th>
+                            {variantTypes.map((group) => (
+                              <th
+                                key={group.typeId}
+                                className="py-3 px-4 w-[12%]"
+                              >
+                                {group.typeName}
+                              </th>
+                            ))}
+                            <th className="py-3 px-4 w-[11%]">Price</th>
+                            <th className="py-3 px-4 w-[9%]">Stock</th>
+                            <th className="py-3 px-4 w-[20%] text-right">
+                              Actions
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
                           {variants.map((variant) => {
+                            const isDeactivated = !variant.is_active;
                             const isEditingRow = editingRowId === variant.id;
-                            const rowModified =
-                              isEditingRow &&
-                              (editFields.sku !== variant.sku ||
-                                parseFloat(editFields.price) !==
-                                  parseFloat(variant.price as any) ||
-                                parseInt(editFields.qty, 10) !==
-                                  parseInt(variant.stock_quantity as any, 10));
+
+                            let parsedOpts: any[] = [];
+                            if (Array.isArray(variant.options))
+                              parsedOpts = variant.options;
 
                             return (
                               <tr
                                 key={variant.id}
-                                className="transition-all duration-200"
+                                className={`transition-all duration-200 ${isDeactivated ? "opacity-40 bg-gray-100/50" : ""}`}
                               >
-                                <td className="py-3 px-4">
-                                  <div className="text-xs font-mono font-bold text-gray-400">
-                                    ID: {variant.id}
-                                  </div>
+                                <td className="py-3 px-4 truncate">
                                   {isEditingRow ? (
                                     <input
                                       type="text"
@@ -683,23 +718,66 @@ const Products = () => {
                                           sku: e.target.value,
                                         })
                                       }
-                                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs font-mono max-w-[120px] focus:outline-blue-500 mt-1"
+                                      className="border border-gray-300 rounded px-2 py-1 text-xs font-mono w-full focus:outline-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
                                     />
                                   ) : (
-                                    <div className="text-sm font-medium text-gray-700 mt-0.5">
+                                    <span
+                                      className="font-mono text-xs block truncate"
+                                      title={variant.sku}
+                                    >
                                       {variant.sku}
-                                    </div>
+                                    </span>
                                   )}
                                 </td>
-                                <td className="py-3 px-4">
-                                  <span className="font-medium">
-                                    {variant.color || "—"}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-4 text-xs font-mono">
-                                  <span>{variant.weight || "—"}</span>
-                                </td>
-                                <td className="py-3 px-4">
+
+                                {variantTypes.map((group) => {
+                                  if (isEditingRow) {
+                                    return (
+                                      <td
+                                        key={group.typeId}
+                                        className="py-3 px-4"
+                                      >
+                                        <select
+                                          value={
+                                            selectedValues[group.typeId] ?? 0
+                                          }
+                                          onChange={(e) =>
+                                            handleDropdownChange(
+                                              group.typeId,
+                                              parseInt(e.target.value, 10),
+                                            )
+                                          }
+                                          className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-blue-500 focus:ring-1 focus:ring-blue-500 bg-white w-full"
+                                        >
+                                          <option value={0}>— None —</option>
+                                          {group.values.map((v) => (
+                                            <option key={v.id} value={v.id}>
+                                              {v.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                    );
+                                  }
+
+                                  const activeDisplayVal = parsedOpts.find(
+                                    (o) =>
+                                      o.type?.toLowerCase() ===
+                                      group.typeName.toLowerCase(),
+                                  );
+                                  return (
+                                    <td
+                                      key={group.typeId}
+                                      className="py-3 px-4 font-medium truncate"
+                                    >
+                                      {activeDisplayVal
+                                        ? activeDisplayVal.value
+                                        : "—"}
+                                    </td>
+                                  );
+                                })}
+
+                                <td className="py-3 px-4 truncate">
                                   {isEditingRow ? (
                                     <input
                                       type="number"
@@ -711,7 +789,7 @@ const Products = () => {
                                           price: e.target.value,
                                         })
                                       }
-                                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs max-w-[80px] focus:outline-blue-500"
+                                      className="border border-gray-300 rounded px-2 py-1 text-xs w-full focus:outline-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
                                     />
                                   ) : (
                                     <span className="font-semibold">
@@ -722,7 +800,8 @@ const Products = () => {
                                     </span>
                                   )}
                                 </td>
-                                <td className="py-3 px-4">
+
+                                <td className="py-3 px-4 truncate">
                                   {isEditingRow ? (
                                     <input
                                       type="number"
@@ -733,58 +812,52 @@ const Products = () => {
                                           qty: e.target.value,
                                         })
                                       }
-                                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs max-w-[70px] focus:outline-blue-500"
+                                      className="border border-gray-300 rounded px-2 py-1 text-xs w-full focus:outline-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
                                     />
                                   ) : (
                                     <span>{variant.stock_quantity}</span>
                                   )}
                                 </td>
-                                <td className="py-3 px-4">
-                                  <div className="flex items-center gap-3">
-                                    <Toggle
-                                      checked={variant.is_active}
-                                      onChange={() =>
-                                        handleToggleVariantActive(
-                                          variant.id,
-                                          variant.is_active,
-                                        )
-                                      }
-                                      labelRight={
-                                        variant.is_active
-                                          ? "Active"
-                                          : "Inactive"
-                                      }
-                                    />
-                                    <div className="flex items-center gap-2">
+
+                                <td className="py-3 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-3 w-full">
+                                    <div className="flex-shrink-0">
+                                      <Toggle
+                                        checked={variant.is_active}
+                                        onChange={() =>
+                                          handleToggleVariantActive(
+                                            variant.id,
+                                            variant.is_active,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-1 min-w-[105px] justify-end flex-shrink-0">
                                       {isEditingRow ? (
                                         <>
                                           <button
                                             onClick={() =>
                                               setEditingRowId(null)
                                             }
-                                            className="text-xs text-gray-400 hover:text-gray-600 font-medium px-2 py-1"
+                                            className="text-xs text-gray-400 hover:text-gray-600 font-medium px-1.5 py-1 transition-colors"
                                           >
                                             Cancel
                                           </button>
-                                          {rowModified && (
-                                            <button
-                                              onClick={() =>
-                                                handleInlineVariantUpdate(
-                                                  variant,
-                                                )
-                                              }
-                                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded shadow animate-pulse"
-                                            >
-                                              Update
-                                            </button>
-                                          )}
+                                          <button
+                                            onClick={() =>
+                                              handleInlineVariantUpdate(variant)
+                                            }
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded shadow transition-colors"
+                                          >
+                                            Save
+                                          </button>
                                         </>
                                       ) : (
                                         <button
                                           onClick={() =>
                                             startEditingVariantRow(variant)
                                           }
-                                          className="text-blue-600 hover:text-blue-800 text-xs font-medium border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-50"
+                                          className="text-blue-600 hover:text-blue-800 text-xs font-medium border border-blue-200 px-2.5 py-1 rounded hover:bg-blue-50 bg-white shadow-sm transition-colors"
                                         >
                                           Edit
                                         </button>
@@ -801,7 +874,7 @@ const Products = () => {
                   )}
                 </div>
 
-                <div className="flex justify-end mt-6 pt-4 border-t border-gray-100">
+                <div className="flex justify-end pt-4 border-t border-gray-100 flex-shrink-0 mt-4">
                   <button
                     onClick={() => {
                       setSelectedProduct(null);
@@ -819,7 +892,6 @@ const Products = () => {
         </main>
       </div>
 
-      {/* AddVariantModal — component, not inline */}
       <AddVariantModal
         isOpen={addVariantTarget !== null}
         product={addVariantTarget}

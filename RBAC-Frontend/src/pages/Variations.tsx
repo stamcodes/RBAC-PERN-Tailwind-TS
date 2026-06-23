@@ -5,6 +5,7 @@ import {
   getProductVariants,
   updateProductVariant,
   toggleVariantActive,
+  getAllVariantValues, // Matches the modal's function name
 } from "../api/products";
 import type { Product, ProductVariant } from "../types";
 import Navbar from "../components/layout/Navbar";
@@ -18,19 +19,30 @@ interface ToastState {
   type: "success" | "error";
 }
 
+// Replace your old ExtendedVariant interface with this:
 interface ExtendedVariant extends ProductVariant {
-  color?: string;
-  weight?: string;
-  is_active: boolean;
+  is_active: boolean; // Ensures your toggle state stays cleanly tracked
 }
 
 interface ProductWithVariants extends Product {
   fetchedVariants: ExtendedVariant[];
 }
 
+interface VariantValueOption {
+  id: number;
+  name: string;
+}
+
+interface VariantTypeGroup {
+  typeId: number;
+  typeName: string;
+  values: VariantValueOption[];
+}
+
 const Variations = () => {
   const { token } = useAuth();
   const [dataPayload, setDataPayload] = useState<ProductWithVariants[]>([]);
+  const [variantTypes, setVariantTypes] = useState<VariantTypeGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<ToastState>({
     show: false,
@@ -39,17 +51,21 @@ const Variations = () => {
   });
 
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
-  const [editFields, setEditFields] = useState({
-    price: "",
-    qty: "",
-    sku: "",
-  });
+
+  // Row inline inputs state
+  const [editFields, setEditFields] = useState({ sku: "", price: "", qty: "" });
+  // Row dropdowns mapping: { [typeId]: selectedValueId } -> Matches Modals.tsx!
+  const [selectedValues, setSelectedValues] = useState<Record<number, number>>(
+    {},
+  );
 
   const [activeProductForModal, setActiveProductForModal] =
     useState<Product | null>(null);
 
   useEffect(() => {
-    if (token) loadProductsAndVariants();
+    if (token) {
+      initPageData();
+    }
   }, [token]);
 
   const showToastNotification = (
@@ -60,9 +76,21 @@ const Variations = () => {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 4000);
   };
 
-  const loadProductsAndVariants = async () => {
+  const initPageData = async () => {
     try {
       setLoading(true);
+      const res = await getAllVariantValues(token!);
+      setVariantTypes(res.data ?? []);
+      await loadProductsAndVariants();
+    } catch {
+      showToastNotification("Failed to load options from server.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadProductsAndVariants = async () => {
+    try {
       const prodRes = await getAllProducts(token!);
       const baseProducts: Product[] = prodRes.data ?? prodRes ?? [];
 
@@ -71,35 +99,7 @@ const Variations = () => {
           try {
             const variantRes = await getProductVariants(token!, product.id);
             const rawVariants = variantRes.data ?? variantRes ?? [];
-
-            const formattedVariants: ExtendedVariant[] = rawVariants.map(
-              (v: any) => {
-                let parsedOptions = [];
-                if (Array.isArray(v.options)) {
-                  parsedOptions = v.options;
-                } else if (typeof v.options === "string") {
-                  try {
-                    parsedOptions = JSON.parse(v.options);
-                  } catch (_) {
-                    parsedOptions = [];
-                  }
-                }
-
-                const colorOpt = parsedOptions.find(
-                  (o: any) => o.type?.toLowerCase() === "color",
-                );
-                const weightOpt = parsedOptions.find(
-                  (o: any) => o.type?.toLowerCase() === "weight",
-                );
-
-                return {
-                  ...v,
-                  color: colorOpt?.value || "",
-                  weight: weightOpt?.value || "",
-                };
-              },
-            );
-            return { ...product, fetchedVariants: formattedVariants };
+            return { ...product, fetchedVariants: rawVariants };
           } catch {
             return { ...product, fetchedVariants: [] };
           }
@@ -111,8 +111,6 @@ const Variations = () => {
         "Failed to organize product variants layout.",
         "error",
       );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -125,8 +123,6 @@ const Variations = () => {
       showToastNotification(
         `Variant successfully ${currentStatus ? "deactivated" : "activated"}!`,
       );
-      // Explicitly wipe the editing lock to force clean row paints
-      setEditingRowId(null);
       await loadProductsAndVariants();
     } catch {
       showToastNotification("Failed to update variant status.", "error");
@@ -140,24 +136,58 @@ const Variations = () => {
       price: variant.price.toString(),
       qty: variant.stock_quantity.toString(),
     });
+
+    // Parse out current options array elements to pre-populate dropdown selections dynamically
+    const initialDropdowns: Record<number, number> = {};
+    let parsedOptions: any[] = [];
+    if (Array.isArray(variant.options)) {
+      parsedOptions = variant.options;
+    } else if (typeof variant.options === "string") {
+      try {
+        parsedOptions = JSON.parse(variant.options);
+      } catch (_) {}
+    }
+
+    parsedOptions.forEach((opt: any) => {
+      // Matches the type system by checking matching type identifiers across loaded config maps
+      const matchingGroup = variantTypes.find(
+        (g) => g.typeName.toLowerCase() === opt.type?.toLowerCase(),
+      );
+      const matchingValue = matchingGroup?.values.find(
+        (v) => v.name === opt.value,
+      );
+      if (matchingGroup && matchingValue) {
+        initialDropdowns[matchingGroup.typeId] = matchingValue.id;
+      }
+    });
+
+    setSelectedValues(initialDropdowns);
+  };
+
+  const handleDropdownChange = (typeId: number, valueId: number) => {
+    setSelectedValues((prev) => ({ ...prev, [typeId]: valueId }));
   };
 
   const handleInlineRowUpdate = async (variant: ExtendedVariant) => {
     try {
+      // Strip zero values exactly like your Modal does
+      const variantValueIds = Object.values(selectedValues).filter(
+        (id) => id > 0,
+      );
+
       await updateProductVariant(token!, variant.id, {
         sku: editFields.sku,
         price: parseFloat(editFields.price),
         stock_quantity: parseInt(editFields.qty, 10),
+        variantValueIds:
+          variantValueIds.length > 0 ? variantValueIds : undefined,
       });
 
       showToastNotification("Database successfully updated!", "success");
       setEditingRowId(null);
       await loadProductsAndVariants();
     } catch {
-      showToastNotification(
-        "Failed to save changes to backend database.",
-        "error",
-      );
+      showToastNotification("Failed to save changes to database.", "error");
     }
   };
 
@@ -167,9 +197,7 @@ const Variations = () => {
 
       {toast.show && (
         <div
-          className={`fixed bottom-5 right-5 z-[999] bg-gray-900 text-white text-sm px-5 py-3 rounded-lg shadow-2xl border-l-4 ${
-            toast.type === "error" ? "border-red-500" : "border-emerald-500"
-          }`}
+          className={`fixed bottom-5 right-5 z-[999] bg-gray-900 text-white text-sm px-5 py-3 rounded-lg shadow-2xl border-l-4 ${toast.type === "error" ? "border-red-500" : "border-emerald-500"}`}
         >
           <p className="font-medium">{toast.message}</p>
         </div>
@@ -183,12 +211,12 @@ const Variations = () => {
               Product Variations
             </h2>
             <p className="text-sm text-gray-500">
-              View, modify, and configure individual sub-catalog variants
+              View and modify your global options mappings inline
             </p>
           </div>
 
           {loading ? (
-            <p className="text-sm text-gray-400">Loading variations map...</p>
+            <p className="text-sm text-gray-400">Loading variations data...</p>
           ) : (
             <div className="flex flex-col gap-10">
               {dataPayload.map((product) => (
@@ -201,9 +229,6 @@ const Variations = () => {
                       <h3 className="text-lg font-bold text-gray-800">
                         Product: {product.name}
                       </h3>
-                      <p className="text-xs font-mono text-gray-400">
-                        Product ID: {product.id}
-                      </p>
                     </div>
                     <button
                       onClick={() => setActiveProductForModal(product)}
@@ -222,12 +247,16 @@ const Variations = () => {
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500 bg-gray-50/70">
-                            <th className="py-3 px-4">Variant ID / SKU</th>
-                            <th className="py-3 px-4">Color</th>
-                            <th className="py-3 px-4">Weight</th>
+                            <th className="py-3 px-4">SKU</th>
+                            {/* Dynamically build table headers based on standard available option types */}
+                            {variantTypes.map((group) => (
+                              <th key={group.typeId} className="py-3 px-4">
+                                {group.typeName}
+                              </th>
+                            ))}
                             <th className="py-3 px-4">Price</th>
                             <th className="py-3 px-4">Qty</th>
-                            <th className="py-3 px-4">Status / Actions</th>
+                            <th className="py-3 px-4">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
@@ -235,28 +264,22 @@ const Variations = () => {
                             const isDeactivated = !variant.is_active;
                             const isEditingRow = editingRowId === variant.id;
 
-                            const rowModified =
-                              isEditingRow &&
-                              (editFields.sku !== variant.sku ||
-                                parseFloat(editFields.price) !==
-                                  parseFloat(variant.price as any) ||
-                                parseInt(editFields.qty, 10) !==
-                                  parseInt(variant.stock_quantity as any, 10));
+                            // Handle option values parsing dynamically for display
+                            let parsedOpts: any[] = [];
+                            if (Array.isArray(variant.options))
+                              parsedOpts = variant.options;
+                            else if (typeof variant.options === "string") {
+                              try {
+                                parsedOpts = JSON.parse(variant.options);
+                              } catch (_) {}
+                            }
 
                             return (
                               <tr
                                 key={variant.id}
-                                className={`transition-all duration-200 ${
-                                  isDeactivated
-                                    ? "opacity-30 bg-gray-100/40 grayscale"
-                                    : ""
-                                }`}
+                                className={`transition-all duration-200 ${isDeactivated ? "opacity-40 bg-gray-100/50" : ""}`}
                               >
-                                {/* SKU */}
                                 <td className="py-3 px-4">
-                                  <div className="text-xs font-mono font-bold text-gray-400">
-                                    ID: {variant.id}
-                                  </div>
                                   {isEditingRow ? (
                                     <input
                                       type="text"
@@ -267,28 +290,63 @@ const Variations = () => {
                                           sku: e.target.value,
                                         })
                                       }
-                                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs font-mono max-w-[120px] focus:outline-blue-500 mt-1"
+                                      className="border border-gray-300 rounded px-2 py-1 text-xs font-mono max-w-[130px] focus:outline-blue-500"
                                     />
                                   ) : (
-                                    <div className="text-sm font-medium text-gray-700 mt-0.5">
+                                    <span className="font-mono text-xs">
                                       {variant.sku}
-                                    </div>
+                                    </span>
                                   )}
                                 </td>
 
-                                {/* Color — read-only, driven by variant options */}
-                                <td className="py-3 px-4">
-                                  <span className="font-medium">
-                                    {variant.color || "—"}
-                                  </span>
-                                </td>
+                                {/* Dynamic Columns Match Selection Groups perfectly */}
+                                {variantTypes.map((group) => {
+                                  if (isEditingRow) {
+                                    return (
+                                      <td
+                                        key={group.typeId}
+                                        className="py-3 px-4"
+                                      >
+                                        <select
+                                          value={
+                                            selectedValues[group.typeId] ?? 0
+                                          }
+                                          onChange={(e) =>
+                                            handleDropdownChange(
+                                              group.typeId,
+                                              parseInt(e.target.value, 10),
+                                            )
+                                          }
+                                          className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-blue-500 bg-white min-w-[100px]"
+                                        >
+                                          <option value={0}>— None —</option>
+                                          {group.values.map((v) => (
+                                            <option key={v.id} value={v.id}>
+                                              {v.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                    );
+                                  }
 
-                                {/* Weight — read-only, driven by variant options */}
-                                <td className="py-3 px-4 text-xs font-mono">
-                                  <span>{variant.weight || "—"}</span>
-                                </td>
+                                  const activeDisplayVal = parsedOpts.find(
+                                    (o) =>
+                                      o.type?.toLowerCase() ===
+                                      group.typeName.toLowerCase(),
+                                  );
+                                  return (
+                                    <td
+                                      key={group.typeId}
+                                      className="py-3 px-4 font-medium"
+                                    >
+                                      {activeDisplayVal
+                                        ? activeDisplayVal.value
+                                        : "—"}
+                                    </td>
+                                  );
+                                })}
 
-                                {/* Price */}
                                 <td className="py-3 px-4">
                                   {isEditingRow ? (
                                     <input
@@ -301,7 +359,7 @@ const Variations = () => {
                                           price: e.target.value,
                                         })
                                       }
-                                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs max-w-[80px] focus:outline-blue-500"
+                                      className="border border-gray-300 rounded px-2 py-1 text-xs max-w-[80px]"
                                     />
                                   ) : (
                                     <span className="font-semibold">
@@ -313,7 +371,6 @@ const Variations = () => {
                                   )}
                                 </td>
 
-                                {/* Qty */}
                                 <td className="py-3 px-4">
                                   {isEditingRow ? (
                                     <input
@@ -325,14 +382,13 @@ const Variations = () => {
                                           qty: e.target.value,
                                         })
                                       }
-                                      className="border border-gray-300 rounded px-1.5 py-0.5 text-xs max-w-[70px] focus:outline-blue-500"
+                                      className="border border-gray-300 rounded px-2 py-1 text-xs max-w-[70px]"
                                     />
                                   ) : (
                                     <span>{variant.stock_quantity}</span>
                                   )}
                                 </td>
 
-                                {/* Status / Actions */}
                                 <td className="py-3 px-4">
                                   <div className="flex items-center gap-4">
                                     <Toggle
@@ -343,43 +399,32 @@ const Variations = () => {
                                           !isDeactivated,
                                         )
                                       }
-                                      labelRight={
-                                        !isDeactivated ? "Active" : "Inactive"
-                                      }
                                     />
-                                    <div className="flex items-center gap-2">
-                                      {isEditingRow ? (
-                                        <>
-                                          <button
-                                            onClick={() =>
-                                              setEditingRowId(null)
-                                            }
-                                            className="text-xs text-gray-400 hover:text-gray-600 font-medium px-2 py-1"
-                                          >
-                                            Cancel
-                                          </button>
-                                          {rowModified && (
-                                            <button
-                                              onClick={() =>
-                                                handleInlineRowUpdate(variant)
-                                              }
-                                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded shadow animate-pulse"
-                                            >
-                                              Update
-                                            </button>
-                                          )}
-                                        </>
-                                      ) : (
+                                    {isEditingRow ? (
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() => setEditingRowId(null)}
+                                          className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1"
+                                        >
+                                          Cancel
+                                        </button>
                                         <button
                                           onClick={() =>
-                                            startEditingRow(variant)
+                                            handleInlineRowUpdate(variant)
                                           }
-                                          className="text-blue-600 hover:text-blue-800 text-xs font-medium border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-50"
+                                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded shadow"
                                         >
-                                          Edit
+                                          Save
                                         </button>
-                                      )}
-                                    </div>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => startEditingRow(variant)}
+                                        className="text-blue-600 hover:text-blue-800 text-xs font-medium border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-50"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -396,7 +441,6 @@ const Variations = () => {
         </main>
       </div>
 
-      {/* AddVariantModal — cleanly extracted, no inline form needed */}
       <AddVariantModal
         isOpen={activeProductForModal !== null}
         product={activeProductForModal}
@@ -404,7 +448,7 @@ const Variations = () => {
         onClose={() => setActiveProductForModal(null)}
         onSuccess={(msg) => {
           showToastNotification(msg, "success");
-          loadProductsAndVariants();
+          initPageData();
         }}
         onError={(msg) => showToastNotification(msg, "error")}
       />
