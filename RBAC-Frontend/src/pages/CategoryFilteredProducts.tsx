@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/authContext";
-import {
-  getAllProducts,
-  getProductVariants,
-  createProductVariant,
-} from "../api/products";
+import { getAllProducts, getProductVariants } from "../api/products";
 import type { Product, ProductVariant } from "../types";
 import Navbar from "../components/layout/Navbar";
 import Sidebar from "../components/layout/Sidebar";
@@ -39,15 +35,15 @@ const CategoryFilteredProducts = () => {
     type: "success",
   });
 
-  // Complete Variants Module States (Copied from Products page)
+  // Complete Variants Module States
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [variantsLoading, setVariantsLoading] = useState(false);
-  const [showCreateVariant, setShowCreateVariant] = useState(false);
-  const [newSku, setNewSku] = useState("");
-  const [newVariantPrice, setNewVariantPrice] = useState("");
-  const [newStockQuantity, setNewStockQuantity] = useState("");
-  const [creatingVariant, setCreatingVariant] = useState(false);
+
+  // New Global Category Modal State
+  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -71,17 +67,58 @@ const CategoryFilteredProducts = () => {
       const prodRes = await getAllProducts(token!);
       setProducts(prodRes.data ?? prodRes ?? []);
 
-      const catRes = await fetch("http://localhost:5000/api/categories", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!catRes.ok) throw new Error();
-      const catData = await catRes.json();
-      setAllCategories(catData.data ?? catData ?? []);
+      await fetchCategories();
     } catch (err) {
       showToastNotification("Failed to fetch page data elements.", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    const catRes = await fetch("http://localhost:5000/api/categories", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!catRes.ok) throw new Error();
+    const catData = await catRes.json();
+    setAllCategories(catData.data ?? catData ?? []);
+  };
+
+  const handleCreateCategoryDB = async () => {
+    if (!newCategoryName.trim()) {
+      showToastNotification("Category name cannot be empty.", "error");
+      return;
+    }
+    try {
+      setCreatingCategory(true);
+      const res = await fetch("http://localhost:5000/api/categories", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: newCategoryName.trim() }),
+      });
+
+      const data = await res.json();
+      if (res.ok || data.success) {
+        showToastNotification("Category successfully saved to database!");
+        setNewCategoryName("");
+        setShowCreateCategoryModal(false);
+        await fetchCategories();
+      } else {
+        showToastNotification(
+          data.message || "Failed to create category.",
+          "error",
+        );
+      }
+    } catch (err) {
+      showToastNotification(
+        "Network failure while creating category.",
+        "error",
+      );
+    } finally {
+      setCreatingCategory(false);
     }
   };
 
@@ -166,7 +203,6 @@ const CategoryFilteredProducts = () => {
     }
   };
 
-  // Complete Variants Handlers (Copied from Products page)
   const handleOpenVariants = async (product: Product) => {
     setSelectedProduct(product);
     setVariantsLoading(true);
@@ -177,33 +213,6 @@ const CategoryFilteredProducts = () => {
       showToastNotification("Failed to load variants.", "error");
     } finally {
       setVariantsLoading(false);
-    }
-  };
-
-  const handleCreateVariant = async () => {
-    if (!newSku || !newVariantPrice || !newStockQuantity) {
-      showToastNotification("All variant fields are required.", "error");
-      return;
-    }
-    try {
-      setCreatingVariant(true);
-      const res = await createProductVariant(
-        token!,
-        selectedProduct!.id,
-        newSku,
-        parseFloat(newVariantPrice),
-        parseInt(newStockQuantity),
-      );
-      setVariants((prev) => [...prev, res.data ?? res]);
-      setNewSku("");
-      setNewVariantPrice("");
-      setNewStockQuantity("");
-      setShowCreateVariant(false);
-      showToastNotification("Product variant saved successfully!");
-    } catch (err: any) {
-      showToastNotification("Failed to create variant.", "error");
-    } finally {
-      setCreatingVariant(false);
     }
   };
 
@@ -387,26 +396,36 @@ const CategoryFilteredProducts = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 bg-white px-3 py-2 border border-gray-200 rounded-lg shadow-sm">
-              <label
-                htmlFor="categoryFilter"
-                className="text-xs font-semibold text-gray-500 uppercase tracking-wider"
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2 bg-white px-3 py-2 border border-gray-200 rounded-lg shadow-sm">
+                <label
+                  htmlFor="categoryFilter"
+                  className="text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                >
+                  Filter:
+                </label>
+                <select
+                  id="categoryFilter"
+                  value={selectedCategoryId}
+                  onChange={(e) => setSelectedCategoryId(e.target.value)}
+                  className="bg-transparent text-sm font-medium text-gray-700 focus:outline-none cursor-pointer pr-4"
+                >
+                  <option value="ALL">All Categories</option>
+                  {allCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Add Category Trigger Action Button */}
+              <button
+                onClick={() => setShowCreateCategoryModal(true)}
+                className="text-xs font-medium text-blue-600 hover:text-blue-800 transition mr-1"
               >
-                Filter:
-              </label>
-              <select
-                id="categoryFilter"
-                value={selectedCategoryId}
-                onChange={(e) => setSelectedCategoryId(e.target.value)}
-                className="bg-transparent text-sm font-medium text-gray-700 focus:outline-none cursor-pointer pr-4"
-              >
-                <option value="ALL">All Categories</option>
-                {allCategories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+                + Add New Category Option
+              </button>
             </div>
           </div>
 
@@ -426,7 +445,7 @@ const CategoryFilteredProducts = () => {
             </div>
           )}
 
-          {/* Variants Overlay View (Copied Module) */}
+          {/* Variants Overlay View (Read-Only Copy Module) */}
           {selectedProduct && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-3xl">
@@ -434,12 +453,6 @@ const CategoryFilteredProducts = () => {
                   <h3 className="text-lg font-bold text-gray-800">
                     Variants — {selectedProduct.name}
                   </h3>
-                  <button
-                    onClick={() => setShowCreateVariant(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded transition"
-                  >
-                    + Add Variant
-                  </button>
                 </div>
                 <p className="text-sm text-gray-500 mb-6">
                   Product ID: {selectedProduct.id}
@@ -456,78 +469,53 @@ const CategoryFilteredProducts = () => {
                     onClick={() => {
                       setSelectedProduct(null);
                       setVariants([]);
-                      setShowCreateVariant(false);
                     }}
                     className="px-4 py-2 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition"
                   >
                     Close
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
 
-                {showCreateVariant && (
-                  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
-                    <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
-                      <h3 className="text-lg font-bold text-gray-800 mb-6">
-                        Add Variant to {selectedProduct.name}
-                      </h3>
-                      <div className="flex flex-col gap-4 mb-6">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-sm font-medium text-gray-700">
-                            SKU
-                          </label>
-                          <input
-                            type="text"
-                            value={newSku}
-                            onChange={(e) => setNewSku(e.target.value)}
-                            placeholder="e.g. SHOE-RED-42"
-                            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-sm font-medium text-gray-700">
-                            Price
-                          </label>
-                          <input
-                            type="number"
-                            value={newVariantPrice}
-                            onChange={(e) => setNewVariantPrice(e.target.value)}
-                            placeholder="e.g. 49.99"
-                            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-sm font-medium text-gray-700">
-                            Stock Quantity
-                          </label>
-                          <input
-                            type="number"
-                            value={newStockQuantity}
-                            onChange={(e) =>
-                              setNewStockQuantity(e.target.value)
-                            }
-                            placeholder="e.g. 100"
-                            className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex gap-3 justify-end">
-                        <button
-                          onClick={() => setShowCreateVariant(false)}
-                          className="px-4 py-2 text-sm rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleCreateVariant}
-                          disabled={creatingVariant}
-                          className={`px-4 py-2 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition ${creatingVariant ? "opacity-50 cursor-not-allowed" : ""}`}
-                        >
-                          {creatingVariant ? "Adding..." : "Add Variant"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+          {/* Inline Create Category Modal Backdrop */}
+          {showCreateCategoryModal && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+                <h3 className="text-base font-bold text-gray-800 mb-4">
+                  Create Brand New Category
+                </h3>
+                <div className="flex flex-col gap-1 mb-6">
+                  <label className="text-xs font-semibold text-gray-500 uppercase">
+                    Category Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="e.g. Summer Wear, Electronics"
+                    className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      setShowCreateCategoryModal(false);
+                      setNewCategoryName("");
+                    }}
+                    className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateCategoryDB}
+                    disabled={creatingCategory}
+                    className="px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition disabled:opacity-50"
+                  >
+                    {creatingCategory ? "Creating..." : "Save Category"}
+                  </button>
+                </div>
               </div>
             </div>
           )}

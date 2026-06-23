@@ -18,6 +18,47 @@
  */
 
 // ==========================================
+// POST /api/categories
+// ==========================================
+/**
+ * @openapi
+ * /api/categories:
+ *   post:
+ *     summary: Create a brand new base category
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Summer Collection
+ *               description:
+ *                 type: string
+ *                 example: Light breathable styles
+ *               branch_id:
+ *                 type: integer
+ *                 example: 1
+ *     responses:
+ *       201:
+ *         description: Category created successfully.
+ *       400:
+ *         description: Missing required field name.
+ *       401:
+ *         description: Unauthorized.
+ *       409:
+ *         description: Category name already exists.
+ *       500:
+ *         description: Server error.
+ */
+
+// ==========================================
 // 23. POST /api/products/:id/categories
 // ==========================================
 /**

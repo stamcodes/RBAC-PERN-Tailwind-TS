@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import db from "../config/db";
 
+// ==========================================
+// 1. GET /api/categories
+// ==========================================
 export const getAllCategories = async (req: Request, res: Response) => {
   try {
     const categories = await db("categories")
@@ -16,7 +19,56 @@ export const getAllCategories = async (req: Request, res: Response) => {
   }
 };
 
+// ==========================================
+// MISSING CONTROLLER ADDED: POST /api/categories
+// ==========================================
+export const createCategory = async (req: Request, res: Response) => {
+  try {
+    const { name, description, branch_id } = req.body;
+
+    if (!name) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Category name is required." });
+    }
+
+    // Check if a category with the same name already exists
+    const existingCategory = await db("categories")
+      .where({ name: name.trim() })
+      .first();
+
+    if (existingCategory) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Category name already exists." });
+    }
+
+    // Insert new category row into database
+    const [newCategory] = await db("categories")
+      .insert({
+        name: name.trim(),
+        description: description || null,
+        branch_id: branch_id || null,
+      })
+      .returning(["id", "name", "description", "branch_id"]);
+
+    return res.status(201).json({
+      success: true,
+      message: "Category created successfully.",
+      data: newCategory,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create category on backend database server.",
+    });
+  }
+};
+
+// ==========================================
 // 22. POST /api/products/:id/categories
+// ==========================================
 export const addProductCategory = async (req: Request, res: Response) => {
   try {
     const productId = parseInt(req.params.id as string, 10);
@@ -68,7 +120,9 @@ export const addProductCategory = async (req: Request, res: Response) => {
   }
 };
 
+// ==========================================
 // 24. DELETE /api/products/:id/categories/:categoryId
+// ==========================================
 export const removeProductCategory = async (req: Request, res: Response) => {
   try {
     const productId = parseInt(req.params.id as string, 10);
