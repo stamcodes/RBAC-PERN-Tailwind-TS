@@ -9,6 +9,7 @@ import branchRoutes from "./routes/branchRoutes";
 import permissionRoutes from "./routes/permissionRoutes";
 import productRoutes from "./routes/productRoutes";
 import categoryRoutes from "./routes/categoryRoutes";
+import orderRoutes from "./routes/orderRoutes";
 
 const app = express();
 
@@ -64,6 +65,7 @@ app.use("/api/roles", roleRoutes);
 app.use("/api/branches", branchRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/orders", orderRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
