@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 
 const links = [
   { label: "Dashboard", path: "/dashboard" },
+  { label: "Orders Ledger", path: "/orders" }, // 👈 Integrated new live POS orders screen link here
   { label: "Users", path: "/users" },
   { label: "Roles", path: "/roles" },
   { label: "Branches", path: "/branches" },

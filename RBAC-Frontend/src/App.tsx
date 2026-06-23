@@ -2,6 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/authContext";
 import ProtectedRoute from "./components/layout/protectedRoute";
 
+// Import Global Notification System Elements
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Users from "./pages/Users";
@@ -10,6 +14,7 @@ import Branches from "./pages/Branches";
 import Products from "./pages/Products";
 import CategoryFilteredProducts from "./pages/CategoryFilteredProducts";
 import Variations from "./pages/Variations";
+import Orders from "./pages/Orders"; // 👈 Integrated new orders dashboard screen
 
 function App() {
   return (
@@ -79,9 +84,30 @@ function App() {
             }
           />
 
+          {/* Protected Live POS Orders Ledger Terminal Screen */}
+          <Route
+            path="/orders"
+            element={
+              <ProtectedRoute>
+                <Orders />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Fallback Catch-All Route */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+
+        {/* Global Toast Notification Engine Container Mount */}
+        <ToastContainer
+          position="top-right"
+          autoClose={4000}
+          hideProgressBar={false}
+          newestOnTop={true}
+          closeOnClick
+          pauseOnHover
+          theme="colored"
+        />
       </BrowserRouter>
     </AuthProvider>
   );
