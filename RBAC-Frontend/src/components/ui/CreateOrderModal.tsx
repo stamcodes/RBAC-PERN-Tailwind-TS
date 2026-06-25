@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { orderApi } from "../../api/orders";
-import axios from "axios";
+import { orderApi, api } from "../../api/orders";
 
 interface CreateOrderModalProps {
   isOpen: boolean;
@@ -12,6 +11,7 @@ interface CreateOrderModalProps {
 interface ProductVariantCatalogItem {
   id: number;
   sku: string;
+  name: string;
   price: string | number;
   stock_quantity: number;
   product_name: string;
@@ -24,6 +24,20 @@ interface SelectedItem {
   price: number;
   quantity: number;
   maxStock: number;
+}
+
+interface ProductFromAPI {
+  id: number;
+  name: string;
+  price: string | number;
+  is_active: boolean;
+  variants: {
+    id: number;
+    sku: string;
+    price: string | number;
+    stock_quantity: number;
+    is_active: boolean;
+  }[];
 }
 
 const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
@@ -43,14 +57,23 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     if (isOpen) {
       const fetchCatalog = async () => {
         try {
-          const API_URL = import.meta.env.VITE_API_URL + "/api";
-          const token = localStorage.getItem("token");
+          const res = await api.get("/products");
+          const products: ProductFromAPI[] = res.data?.data || [];
 
-          const res = await axios.get(`${API_URL}/variants`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
+          // Flatten each product's variants into catalog rows
+          const flatVariants: ProductVariantCatalogItem[] = products.flatMap(
+            (product) =>
+              product.variants.map((variant) => ({
+                id: variant.id,
+                sku: variant.sku,
+                name: variant.sku,
+                product_name: product.name, // ✅ correctly mapped
+                price: variant.price,
+                stock_quantity: variant.stock_quantity,
+              })),
+          );
 
-          setCatalog(res.data?.data || []);
+          setCatalog(flatVariants);
         } catch (err) {
           console.error("Failed fetching catalog:", err);
           toast.error("Failed to load inventory product catalog.");
@@ -154,11 +177,12 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     }
   };
 
-  const filteredCatalog = catalog.filter(
-    (item) =>
-      item.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.product_name?.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredCatalog = catalog.filter((item) => {
+    const searchLower = searchQuery.toLowerCase();
+    const productName = item?.product_name || item?.name || "";
+
+    return productName.toLowerCase().includes(searchLower);
+  });
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4 animate-fadeIn">
@@ -183,7 +207,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
         {/* The Split-View Matrix Grid */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
-          {/* LEFT ZONE: Product Search & Active Item Tray Menu (7 Columns) */}
+          {/* LEFT ZONE: Product Search & Active Item Tray (7 Columns) */}
           <div className="lg:col-span-7 p-6 overflow-y-auto border-r border-gray-200 flex flex-col gap-5">
             {/* Realtime Filter Catalog Field */}
             <div className="flex flex-col gap-1.5">
@@ -199,7 +223,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               />
             </div>
 
-            {/* Quick Filter Search Results dropdown/tray */}
+            {/* Quick Filter Search Results */}
             {searchQuery && (
               <div className="bg-gray-50 border border-gray-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-200 shadow-inner">
                 {filteredCatalog.length === 0 ? (
@@ -226,7 +250,11 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                           ${Number(item.price).toFixed(2)}
                         </span>
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.stock_quantity > 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            item.stock_quantity > 0
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
                         >
                           Stock: {item.stock_quantity}
                         </span>
@@ -237,7 +265,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               </div>
             )}
 
-            {/* Active Invoice Tray Table Grid */}
+            {/* Active Invoice Tray */}
             <div className="flex-1 flex flex-col min-h-[250px]">
               <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
                 Active Invoice Matrix
@@ -320,7 +348,6 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             onSubmit={handleSubmitOrder}
             className="lg:col-span-5 bg-gray-50 p-6 flex flex-col justify-between overflow-y-auto"
           >
-            {/* Top Core Inputs Structure Section */}
             <div className="space-y-5">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -336,7 +363,6 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 />
               </div>
 
-              {/* Hardcoded Branch context identifier mirror */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Operating Ledger Branch ID
@@ -351,7 +377,6 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
               <hr className="border-gray-200 my-2" />
 
-              {/* Total Financial Invoice Summary Blocks */}
               <div className="space-y-2.5">
                 <div className="flex justify-between items-center text-sm text-gray-600">
                   <span>Gross Matrix Total:</span>
@@ -380,10 +405,13 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                   </div>
                 </div>
 
-                {/* Balance Output Logic Display rows */}
                 {cashReceived && (
                   <div
-                    className={`p-3 rounded-lg border flex justify-between items-center text-sm transition ${isShortfall ? "bg-red-50 border-red-100 text-red-700" : "bg-green-50 border-green-100 text-green-700"}`}
+                    className={`p-3 rounded-lg border flex justify-between items-center text-sm transition ${
+                      isShortfall
+                        ? "bg-red-50 border-red-100 text-red-700"
+                        : "bg-green-50 border-green-100 text-green-700"
+                    }`}
                   >
                     <span className="font-medium">
                       {isShortfall
@@ -398,7 +426,6 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               </div>
             </div>
 
-            {/* Bottom Form Action Buttons Footers */}
             <div className="flex gap-3 mt-8">
               <button
                 type="button"

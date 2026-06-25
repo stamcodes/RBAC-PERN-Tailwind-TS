@@ -123,12 +123,10 @@ export const resetPassword = async (req: Request, res: Response) => {
     const { email, newPassword } = req.body;
 
     if (!email || !newPassword) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Email and new password are required.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Email and new password are required.",
+      });
     }
 
     const user = await db("users").where({ email }).first();

@@ -14,7 +14,7 @@ import Branches from "./pages/Branches";
 import Products from "./pages/Products";
 import CategoryFilteredProducts from "./pages/CategoryFilteredProducts";
 import Variations from "./pages/Variations";
-import Orders from "./pages/Orders"; // 👈 Integrated new orders dashboard screen
+import Orders from "./pages/Orders";
 
 function App() {
   return (

@@ -14,6 +14,21 @@ export const getAllProducts = async (req: Request, res: Response) => {
         db.raw(
           "COALESCE(json_agg(DISTINCT jsonb_build_object('id', categories.id, 'name', categories.name)) FILTER (WHERE categories.id IS NOT NULL), '[]'::json) as categories",
         ),
+        // ✅ ADD THIS — nest all active variants per product
+        db.raw(`
+          COALESCE(
+            json_agg(
+              DISTINCT jsonb_build_object(
+                'id', product_variants.id,
+                'sku', product_variants.sku,
+                'price', product_variants.price,
+                'stock_quantity', product_variants.stock_quantity,
+                'is_active', product_variants.is_active
+              )
+            ) FILTER (WHERE product_variants.id IS NOT NULL AND product_variants.is_active = true),
+            '[]'::json
+          ) as variants
+        `),
       )
       .leftJoin(
         "product_categories",
@@ -21,6 +36,13 @@ export const getAllProducts = async (req: Request, res: Response) => {
         "product_categories.product_id",
       )
       .leftJoin("categories", "product_categories.category_id", "categories.id")
+
+      .leftJoin(
+        "product_variants",
+        "products.id",
+        "product_variants.product_id",
+      )
+      .where("products.is_active", true) // ✅ only active products
       .groupBy("products.id")
       .orderBy("products.id", "asc");
 

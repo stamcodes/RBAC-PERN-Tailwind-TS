@@ -2,13 +2,13 @@ import axios from "axios";
 
 const BASE_URL = import.meta.env.VITE_API_URL;
 
-const api = axios.create({
+export const api = axios.create({
   baseURL: `${BASE_URL}/api`,
 });
 
 // Automatically append token to all order requests if it exists in storage
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("rbac_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -20,7 +20,6 @@ export const orderApi = {
     const response = await api.get("/orders");
     return response.data;
   },
-
   getOrderById: async (id: number | string) => {
     const response = await api.get(`/orders/${id}`);
     return response.data;
