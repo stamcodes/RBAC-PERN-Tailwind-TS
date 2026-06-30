@@ -18,7 +18,7 @@ export async function seed(knex: Knex): Promise<void> {
   ]);
 
   // Fetch admin role and all permissions
-  const adminRole = await knex("roles").where({ name: "admin" }).first();
+  const adminRole = await knex("roles").where({ name: "Admin" }).first();
   const allPermissions = await knex("permissions").select("id");
 
   // Link all permissions to admin role
