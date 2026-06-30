@@ -1,6 +1,6 @@
 services:
   api:
-    build: ./RBAC-Backend
+    image: staneerahmed/rbac-backend:v1
     ports:
       - "5000:5000"
     environment:
@@ -12,7 +12,7 @@ services:
       - db
 
   web:
-    build: ./RBAC-Frontend
+    image: staneerahmed/rbac-frontend:v1
     ports:
       - "5173:5173"
     environment:
